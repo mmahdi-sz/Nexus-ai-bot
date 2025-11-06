@@ -23,10 +23,13 @@ export async function dbQuery(sql, params = [], retries = DEFAULT_RETRIES) {
     let connection = null;
     let lastError = null;
     const cleanParams = prepareParams(params);
-
+    const shouldLog = !sql.toUpperCase().startsWith('SELECT') && !sql.toUpperCase().includes('INSERT IGNORE');
+    
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            console.log(`[db:repository:dbQuery] Query Executing (Attempt: ${attempt}/${retries}, SQL: ${sql.substring(0, 50)}..., Params Count: ${cleanParams.length})`);
+            if (shouldLog) {
+                console.log(`[db:repository:dbQuery] Query Executing (Attempt: ${attempt}/${retries}, SQL: ${sql.substring(0, 50)}..., Params Count: ${cleanParams.length})`);
+            }
             
             connection = await pool.getConnection();
             
