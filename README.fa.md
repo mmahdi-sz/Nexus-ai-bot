@@ -73,7 +73,7 @@ Nexus AI به عنوان یک هاب مرکزی برای چندین قابلیت
 ### مراحل پیکربندی
 1.  **دریافت کد و نصب وابستگی‌ها:**
     ```bash
-    git clone https://github.com/yourusername/nexus-ai-bot.git
+    git clone https://github.com/mmahdi-sz/nexus-ai-bot.git
     cd nexus-ai-bot
     npm install
     ```
