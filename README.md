@@ -5,8 +5,8 @@
 **[فارسی / Persian](./README.fa.md)**
 
 <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" />
-<img src="https://img.shields.com/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" />
-<img src="https://img.shields.com/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" />
+<img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" />
+<img src="https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" />
 <img src="https://img.shields.io/badge/Architecture-00599C?style=for-the-badge&logo=databricks&logoColor=white" />
 
 **The core hub for advanced AI functionalities, featuring enterprise-grade Key Pooling, Group Moderation, and a robust Admin Panel.**
@@ -74,7 +74,7 @@ The architecture separates core logic, database interactions, event handlers, an
 ### Configuration Steps
 1.  **Clone the Repository & Install Dependencies:**
     ```bash
-    git clone https://github.com/yourusername/nexus-ai-bot.git
+    git clone https://github.com/mmahdi-sz/nexus-ai-bot.git
     cd nexus-ai-bot
     npm install
     ```

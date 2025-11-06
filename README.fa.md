@@ -5,8 +5,8 @@
 **[English / انگلیسی](./README.md)** | **فارسی**
 
 <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" />
-<img src="https://img.shields.com/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" />
-<img src="https://img.shields.com/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" />
+<img src="https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" />
+<img src="https://img.shields.io/badge/Google_Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" />
 <img src="https://img.shields.io/badge/Architecture-00599C?style=for-the-badge&logo=databricks&logoColor=white" />
 
 **هسته مرکزی برای قابلیت‌های پیشرفته هوش مصنوعی، شامل سیستم مدیریت کلید (Key Pooling) در سطح سازمانی، ناظر گروه و پنل مدیریت جامع.**
@@ -73,7 +73,7 @@ Nexus AI به عنوان یک هاب مرکزی برای چندین قابلیت
 ### مراحل پیکربندی
 1.  **دریافت کد و نصب وابستگی‌ها:**
     ```bash
-    git clone https://github.com/yourusername/nexus-ai-bot.git
+    git clone https://github.com/mmahdi-sz/nexus-ai-bot.git
     cd nexus-ai-bot
     npm install
     ```
