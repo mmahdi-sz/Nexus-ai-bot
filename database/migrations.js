@@ -140,7 +140,7 @@ const TABLE_CREATION_QUERIES = [
 
 
 const ALTER_TABLE_QUERIES = [
-    `ALTER TABLE api_key_usage ADD COLUMN token_count INT DEFAULT 0 AFTER request_count`
+    
 ];
 
 const DEFAULT_SETTINGS = [
@@ -223,14 +223,7 @@ export async function runMigrations() {
         await dbQuery(query);
     }
 
-    try {
-        await dbQuery(ALTER_TABLE_QUERIES[0]);
-    } catch (alterError) {
-        if (!alterError.message.includes('Duplicate column name')) {
-             console.error("[db:migrations:runMigrations] Failed to alter api_key_usage table:", alterError.message);
-        }
-    }
-
+    
     for (const setting of DEFAULT_SETTINGS) {
         await dbQuery(setting.sql);
     }
