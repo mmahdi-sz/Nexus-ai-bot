@@ -75,7 +75,6 @@ export const purgeChatData = async (chatId) => {
             console.log(`[database:purgeChatData] Purge successful. Total rows deleted: ${totalChanges}.`);
         });
         
-        // Cache Invalidation after purge
         if (appCache.authorizedChats.has(chatId)) {
             appCache.authorizedChats.delete(chatId);
             console.log(`[database:purgeChatData] Cache invalidated for Chat ID: ${chatId}`);
@@ -88,6 +87,7 @@ export const purgeChatData = async (chatId) => {
     }
 };
 
+export { dbQuery, dbTransaction };
 
 export const { addChat, deactivateChat, isChatAuthorized, updateGroupStats, getAllGroupStats, getGroupDetailsList, addSpecialChat, removeSpecialChat, isSpecialChat, getAllSpecialChats } = ChatRepo;
 
