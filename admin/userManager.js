@@ -112,7 +112,13 @@ export async function handleUserManagementInput(bot, msg, ownerState, originalPa
     }
     
     if (state === 'user_add_awaiting_name') {
-        const displayName = text;
+        const displayName = text.trim();
+        
+        if (displayName.length < 2 || displayName.length > 50) {
+            await editMessageSafe(bot, msg.chat.id, originalPanelMessageId, escapeMarkdownV2('⚠️ نام باید بین 2 تا 50 کاراکتر باشد.'), { reply_markup: { inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_user_menu_main' }]] }, parse_mode: 'MarkdownV2' }).catch(() => {});
+            return true;
+        }
+
         await db.setOwnerState(BOT_OWNER_ID, 'user_add_awaiting_prompt', { ...data, display_name: displayName });
         editMessageSafe(bot, msg.chat.id, originalPanelMessageId, '**مرحله ۳: پرامپت رفتار**\n\nدستورالعمل رفتار آرتور با این فرد را بنویسید.', { reply_markup: { inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_user_menu_main' }]] }, parse_mode: 'Markdown' }).catch(() => {});
         return true;
@@ -165,7 +171,14 @@ export async function handleUserManagementInput(bot, msg, ownerState, originalPa
                 return true;
             }
         }
-        if (field === 'name') updates.newDisplayName = text;
+        if (field === 'name') {
+            const displayName = text.trim();
+            if (displayName.length < 2 || displayName.length > 50) {
+                await editMessageSafe(bot, msg.chat.id, originalPanelMessageId, escapeMarkdownV2('⚠️ نام باید بین 2 تا 50 کاراکتر باشد.'), { inline_keyboard: [[{ text: '❌ لغو', callback_data: `cancel_state_return_${backCallback}` }]], parse_mode: 'MarkdownV2' }).catch(() => {});
+                return true;
+            }
+            updates.newDisplayName = displayName;
+        }
         if (field === 'prompt') {
             const prompt = text.trim();
             const MAX_PROMPT_LENGTH = 2000;

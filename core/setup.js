@@ -12,9 +12,7 @@ let appConfig = {
     maxHistoryTurns: 10,
     reinjectPromptEvery: 25,
     userLimits: {
-        day: 10,
-        week: 40,
-        month: 100
+        day: 26
     },
     keyDailyRequestLimit: 800,
     keyDailyTokenLimit: 700000
@@ -90,11 +88,9 @@ async function loadApiKeys() {
 async function loadInitialCache() {
     console.log('[setup:loadInitialCache] START - Loading initial cache from DB.');
     
-    // Load authorized chats
     const authorizedChatsRows = await db.dbQuery("SELECT chat_id FROM chats WHERE is_enabled = 1");
     const authorizedChats = new Set(authorizedChatsRows.map(row => row.chat_id));
 
-    // Load global settings keys for caching (e.g., global_button_enabled)
     const settingsKeys = ['global_button', 'global_button_enabled'];
     const globalSettings = {};
     for (const key of settingsKeys) {

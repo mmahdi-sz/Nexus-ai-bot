@@ -167,6 +167,8 @@ export async function handleUserKeyDonation(bot, msg) {
     if (!userState || userState.state !== DONATION_STATES.KEY_AWAITING) {
         return false;
     }
+    
+    bot.deleteMessage(msg.chat.id, msg.message_id).catch(() => {});
 
     if (text === '/cancel' || text === '❌ انصراف') {
         await db.clearUserState(userId);
@@ -192,7 +194,7 @@ export async function handleUserKeyDonation(bot, msg) {
     
     for (const step of validationSteps) {
         if (!step.check) {
-            await sendMessageSafe(bot, msg.chat.id, escapeMarkdownV2(step.error), { reply_to_message_id: msg.message_id, parse_mode: 'MarkdownV2' });
+            await sendMessageSafe(bot, msg.chat.id, escapeMarkdownV2(step.error), { parse_mode: 'MarkdownV2' });
             return true;
         }
     }
@@ -228,29 +230,22 @@ ${boldText('در حال بررسی کلید شما...')}
         return true;
     }
 
-    const isValid = await validateApiKey(newApiKey);
+    const validationResult = await validateApiKey(newApiKey);
     
-    if (!isValid) {
+    if (!validationResult.isValid) {
         await db.clearUserState(userId);
-        const invalidText = `❌ ${boldText('کلید نامعتبر است')}
+        let errorText;
 
-[▰▰▰▰▱] 80%
+        if (validationResult.reason === 'rate_limited') {
+            errorText = await db.getText('apikey_rate_limited', 'هی رفیق، انگار این کلید خسته شده. به نظر می‌رسه به سقف مصرفش رسیده. برو یه کلید کاملاً جدید با یه حساب گوگل دیگه بساز و اونو برام بفرست. منتظرتم.');
+        } else {
+            errorText = await db.getText('apikey_invalid', '⚠️ این کلید معتبر نیست رفیق. مطمئن شو درست کپیش کردی.');
+        }
 
-${boldText('دلایل احتمالی:')}
-\\- کلید منقضی شده
-\\- محدودیت در حساب Google
-\\- کلید نادرست کپی شده
-
-${boldText('راه حل:')}
-1\\. کلید جدید از Google بگیرید
-2\\. با دقت کامل کپی کنید
-3\\. دوباره امتحان کنید
-
-برای شروع مجدد: ${inlineCode('/donate')}`;
-        await bot.editMessageText(invalidText, {
+        await bot.editMessageText(errorText, {
             chat_id: msg.chat.id,
             message_id: placeholder.message_id,
-            parse_mode: 'MarkdownV2'
+            parse_mode: 'Markdown'
         });
         return true;
     }

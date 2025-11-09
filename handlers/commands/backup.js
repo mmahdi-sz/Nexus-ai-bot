@@ -108,12 +108,38 @@ async function cleanOldBackups() {
     }
 }
 
+async function checkMysqldumpAvailability() {
+    try {
+        await execAsync('mysqldump --version');
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
 export async function handleBackupCommand(bot, msg) {
     console.log(`[backup:handleBackupCommand] START (User: ${msg.from.id})`);
     const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
     
     if (msg.from.id !== BOT_OWNER_ID) {
         console.log('[backup:handleBackupCommand] END - Not owner, ignoring.');
+        return;
+    }
+
+    const hasMysqldump = await checkMysqldumpAvailability();
+    if (!hasMysqldump) {
+        const errorText = 
+            `❌ **mysqldump یافت نشد**\n\n` +
+            `برای استفاده از این قابلیت، mysqldump باید روی سرور نصب باشد.\n\n` +
+            `**نصب:**\n` +
+            '`apt-get install mysql-client` (Ubuntu/Debian)\n' +
+            '`yum install mysql` (CentOS/RHEL)';
+        
+        await sendMessageSafe(bot, msg.chat.id, errorText, { 
+            reply_to_message_id: msg.message_id,
+            parse_mode: 'Markdown'
+        });
+        console.log('[backup:handleBackupCommand] END - mysqldump not available.');
         return;
     }
     

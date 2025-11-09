@@ -13,7 +13,54 @@ const COMMAND_TO_TYPE = {
     'حذف بن': 'unban', 'آنبن': 'unban', 'انبن': 'unban', 'unban': 'unban', 'pardon': 'unban',
 };
 
-const COMMAND_KEYS_REGEX = new RegExp(`^(${Object.keys(COMMAND_TO_TYPE).join('|').replace(/ /g, '\\s+')})\\s*`, 'i');
+const COMMAND_KEYS_REGEX = new RegExp(`^(${Object.keys(COMMAND_TO_TYPE).join('|').replace(/ /g, '\\s+')})(?:\\s+|$)`, 'i');
+
+function toJalali(date) {
+    const g2j = (gy, gm, gd) => {
+        const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+        let jy = (gy <= 1600) ? 0 : 979;
+        gy -= (gy <= 1600) ? 621 : 1600;
+        let gy2 = (gm > 2) ? (gy + 1) : gy;
+        let days = (365 * gy) + (Math.floor((gy2 + 3) / 4)) - (Math.floor((gy2 + 99) / 100)) + 
+                   (Math.floor((gy2 + 399) / 400)) - 80 + gd + g_d_m[gm - 1];
+        jy += 33 * Math.floor(days / 12053);
+        days %= 12053;
+        jy += 4 * Math.floor(days / 1461);
+        days %= 1461;
+        if (days > 365) {
+            jy += Math.floor((days - 1) / 365);
+            days = (days - 1) % 365;
+        }
+        const sal_a = [0, 31, 62, 93, 124, 155, 186, 216, 246, 276, 306, 336];
+        let jm, jd;
+        for (let i = 0; i < 12; i++) {
+            const v = sal_a[i];
+            if (days < v) {
+                jm = (i === 0) ? 12 : i;
+                jd = days - sal_a[i - 1] + 1;
+                break;
+            }
+        }
+        if (!jm) { jm = 12; jd = days - sal_a[11] + 1; }
+        return [jy, jm, jd];
+    };
+    
+    const [jy, jm, jd] = g2j(date.getFullYear(), date.getMonth() + 1, date.getDate());
+    return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
+}
+
+function getDurationText(seconds) {
+    if (seconds === 0) return 'دائمی';
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const parts = [];
+    if (days > 0) parts.push(`${days} روز`);
+    if (hours > 0) parts.push(`${hours} ساعت`);
+    if (minutes > 0) parts.push(`${minutes} دقیقه`);
+    return parts.join(' و ') || 'کمتر از یک دقیقه';
+}
+
 
 function parseDuration(durationString) {
     if (!durationString) return 0;
@@ -183,9 +230,7 @@ export async function handleGroupGuard(bot, msg, botInfo) {
     }
     
     const userDisplayName = targetUsername || targetFirstName || 'ناشناس';
-    const userLink = targetUsername 
-        ? `<a href="tg://user?id=${targetId}">@${targetUsername}</a>`
-        : `<a href="tg://user?id=${targetId}">${userDisplayName}</a>`; 
+    const userLink = `<a href="tg://user?id=${targetId}">${userDisplayName}</a>`;
     
     const userInfo = `[${targetId}] ${userLink}`;
     
@@ -195,15 +240,10 @@ export async function handleGroupGuard(bot, msg, botInfo) {
     } 
     
     try {
-        let successTextKey;
-
-        if (botPerms.canDelete) {
-            try {
-                await bot.deleteMessage(chatId, msg.message_id);
-            } catch (deleteError) {
-                console.warn(`[groupGuard:handleGroupGuard] Failed to delete command message ${msg.message_id}:`, deleteError.message);
-            }
-        }
+        let successText;
+        const untilDate = finalUntilDate > 0 ? new Date(finalUntilDate * 1000) : null;
+        const jalaliDate = untilDate ? toJalali(untilDate) : null;
+        const durationText = getDurationText(durationSeconds);
 
         const FULL_PERMISSIONS = {
             can_send_messages: true,
@@ -225,13 +265,17 @@ export async function handleGroupGuard(bot, msg, botInfo) {
         switch (commandType) {
             case 'ban':
                 await bot.banChatMember(chatId, targetId, { until_date: finalUntilDate }); 
-                successTextKey = finalUntilDate > 0 ? 'guard_success_temp_ban' : 'guard_success_ban';
+                if (finalUntilDate > 0) {
+                    successText = `✅ کاربر ${userInfo} به مدت ${durationText} مسدود شد.\n\n📅 تا تاریخ: ${jalaliDate}`;
+                } else {
+                    successText = `✅ کاربر ${userInfo} به صورت دائم مسدود شد.`;
+                }
                 break;
 
             case 'kick':
                 await bot.banChatMember(chatId, targetId, { until_date: Math.floor(Date.now() / 1000) + 60 }); 
                 await bot.unbanChatMember(chatId, targetId);
-                successTextKey = 'guard_success_kick';
+                successText = `✅ کاربر ${userInfo} از گروه اخراج شد.`;
                 break;
 
             case 'mute':
@@ -239,7 +283,11 @@ export async function handleGroupGuard(bot, msg, botInfo) {
                     permissions: { can_send_messages: false }, 
                     until_date: finalUntilDate 
                 });
-                successTextKey = finalUntilDate > 0 ? 'guard_success_mute' : 'guard_success_mute_permanent';
+                if (finalUntilDate > 0) {
+                    successText = `✅ کاربر ${userInfo} به مدت ${durationText} سکوت شد.\n\n📅 تا تاریخ: ${jalaliDate}\n\n🔇 این کاربر نمی‌تواند در گروه پیام ارسال کند.`;
+                } else {
+                    successText = `✅ کاربر ${userInfo} به صورت دائم سکوت شد.\n\n🔇 این کاربر نمی‌تواند در گروه پیام ارسال کند.`;
+                }
                 break;
             
             case 'unmute':
@@ -247,33 +295,15 @@ export async function handleGroupGuard(bot, msg, botInfo) {
                     permissions: FULL_PERMISSIONS,
                     until_date: 0 
                 });
-                successTextKey = 'guard_success_unmute';
+                successText = `✅ سکوت کاربر ${userInfo} برداشته شد.\n\n🔊 این کاربر اکنون می‌تواند در گروه پیام ارسال کند.`;
                 break;
 
             case 'unban':
                 await bot.unbanChatMember(chatId, targetId);
-                successTextKey = 'guard_success_unban';
+                successText = `✅ مسدودیت کاربر ${userInfo} برداشته شد.\n\n✓ این کاربر می‌تواند دوباره به گروه بپیوندد.`;
                 break;
         }
 
-        let successText = await db.getText(successTextKey, `✅ عملیات ${commandType} با موفقیت انجام شد.`);
-        
-        if (successTextKey === 'guard_success_ban') {
-            successText = `✅ کاربر ${userInfo} مسدود شد. این فرد دیگه از دار و دسته ما نیست!`;
-        } else if (successTextKey === 'guard_success_temp_ban') {
-            successText = `✅ کاربر ${userInfo} موقت مسدود شد. بعد از مدتی آزاد می‌شه.`;
-        } else if (successTextKey === 'guard_success_kick') {
-            successText = `✅ کاربر ${userInfo} کیک شد. حالا می‌تونه بره دنبال زندگی جدید.`;
-        } else if (successTextKey === 'guard_success_mute_permanent') {
-            successText = `✅ کاربر ${userInfo} سکوت دائمی شد. بهتره فکر کنه قبل از حرف زدن.`;
-        } else if (successTextKey === 'guard_success_mute') {
-            successText = `✅ کاربر ${userInfo} سکوت موقت شد. بهتره فکر کنه قبل از حرف زدن.`;
-        } else if (successTextKey === 'guard_success_unmute') {
-            successText = `✅ کاربر ${userInfo} سکوت شکسته شد! حالا می‌تونه دوباره حرف بزنه.`;
-        } else if (successTextKey === 'guard_success_unban') {
-            successText = `✅ کاربر ${userInfo} رفع مسدودیت شد. این فرد می‌تونه دوباره برگرده.`;
-        }
-        
         await sendMessageSafe(bot, chatId, successText, { parse_mode: 'HTML' });
         
         return true;

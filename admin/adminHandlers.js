@@ -1,9 +1,6 @@
 import * as db from '../database.js';
 import { GoogleGenAI } from '@google/genai';
 
-/**
- * ایجاد منوی حذف پویا برای API Keys یا Special Chats.
- */
 export async function generateDeletionMenu(getItems, config) {
     const { emptyText, backCallback, title, itemTextKey, itemIdKey, callbackPrefix } = config;
 
@@ -27,19 +24,27 @@ export async function generateDeletionMenu(getItems, config) {
     };
 }
 
-/**
- * اعتبارسنجی یک کلید API با استفاده از یک فراخوانی ساده به Gemini.
- */
 export async function validateApiKey(apiKey) {
+    const cleanedApiKey = apiKey.trim();
+
     try {
-        const genAI = new GoogleGenAI({ apiKey });
-        await genAI.models.generateContent({
+        const genAI = new GoogleGenAI({ apiKey: cleanedApiKey });
+        const result = await genAI.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: [{ role: "user", parts: [{ text: "test" }] }],
+            contents: "test",
         });
-        return true;
+        
+        const text = result.text;
+
+        if (text && text.length > 0) {
+            return { isValid: true, reason: 'success' };
+        }
+        return { isValid: false, reason: 'generic' };
     } catch (error) {
-        console.error(`[validateApiKey] Key validation failed. Reason:`, error);
-        return false;
+        console.error(`[validateApiKey] Key validation failed. Reason:`, error.message);
+        if (error.message && (error.message.includes('"code":429') || error.message.includes('RESOURCE_EXHAUSTED'))) {
+            return { isValid: false, reason: 'rate_limited' };
+        }
+        return { isValid: false, reason: 'generic' };
     }
 }

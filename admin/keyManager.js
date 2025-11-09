@@ -96,11 +96,18 @@ export async function handleKeyManagementInput(bot, msg, ownerState, originalPan
         }
 
         await editMessageSafe(bot, msg.chat.id, originalPanelMessageId, escapeMarkdownV2(await db.getText('apikey_checking', '⏳ در حال اعتبارسنجی کلید API...'))).catch(() => {});
-        const isValid = await validateApiKey(newApiKey);
+        const validationResult = await validateApiKey(newApiKey);
 
-        if (!isValid) {
+        if (!validationResult.isValid) {
             await db.clearOwnerState(BOT_OWNER_ID);
-            const errorText = escapeMarkdownV2(await db.getText('apikey_invalid', '⚠️ این کلید معتبر نیست رفیق\\. مطمئن شو درست کپیش کردی\\.'));
+            let errorText;
+
+            if (validationResult.reason === 'rate_limited') {
+                errorText = escapeMarkdownV2(await db.getText('apikey_rate_limited', 'هی رفیق، انگار این کلید خسته شده. به نظر می‌رسه به سقف مصرفش رسیده. برو یه کلید کاملاً جدید با یه حساب گوگل دیگه بساز و اونو برام بفرست. منتظرتم.'));
+            } else {
+                errorText = escapeMarkdownV2(await db.getText('apikey_invalid', '⚠️ این کلید معتبر نیست رفیق\\. مطمئن شو درست کپیش کردی\\.'));
+            }
+            
             await editMessageSafe(bot, msg.chat.id, originalPanelMessageId, errorText, {
                 reply_markup: backToApiKeysKeyboard,
                 parse_mode: 'MarkdownV2'

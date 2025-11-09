@@ -18,19 +18,19 @@ export async function handleStatsCommand(bot, msg) {
         const donatedKeys = await db.countDonatedKeys();
 
         const text = `📊 *آمار لحظه‌ای ربات آرتور*
-\\-\\-\\-
+
 👤 *کاربران \\(۲۴ ساعت اخیر\\):*
    \\- کاربران یکتا: *${escapeMarkdownV2(dayStats.unique_users.toString())} نفر*
    \\- کل پیام‌ها: *${escapeMarkdownV2(dayStats.total_messages.toString())} پیام*
-\\-\\-\\-
+
 👥 *کاربران \\(کل\\):*
    \\- کاربران یکتا: *${escapeMarkdownV2(allStats.unique_users.toString())} نفر*
    \\- کل پیام‌ها: *${escapeMarkdownV2(allStats.total_messages.toString())} پیام*
-\\-\\-\\-
+
 🏘️ *گروه‌ها:*
    \\- گروه‌های فعال: *${escapeMarkdownV2(groupStats.enabled_groups.toString())} عدد*
    \\- مجموع اعضا \\(تخمینی\\): *${escapeMarkdownV2(groupStats.total_members.toString())} نفر*
-\\-\\-\\-
+
 🔑 *وضعیت کلیدهای API:*
    \\- کلیدهای عمومی فعال: *${escapeMarkdownV2(activeKeys.length.toString())} عدد*
    \\- کلیدهای اهدا شده توسط کاربران: *${escapeMarkdownV2(donatedKeys.toString())} عدد*`;

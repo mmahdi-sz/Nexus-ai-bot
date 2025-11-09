@@ -110,13 +110,12 @@ async function showBroadcastPreview(bot, ownerId, messageId, content, type, targ
     let previewMessageId = null;
 
     if (content.type === 'message') {
-        // Here, content.text is assumed to be user-provided Markdown, so it's not escaped again.
         const caption = content.text + '\n\n' + escapeMarkdownV2('└────────────────┘\n\n⬆️ این همان چیزی است که کاربران خواهند دید');
 
         if (content.media?.type === 'photo') {
             const sent = await bot.sendPhoto(ownerId, content.media.file_id, {
                 caption: caption,
-                parse_mode: 'Markdown' // Use Markdown as user may have provided it
+                parse_mode: 'Markdown'
             }).catch(e => handleTelegramApiError(e, 'Broadcast Preview Photo'));
             previewMessageId = sent?.message_id;
         } else if (content.media?.type === 'video') {
@@ -194,7 +193,6 @@ export async function handleBroadcastContentInput(bot, msg, ownerState) {
             message_id: msg.forward_from_message_id
         };
     } else {
-        // For 'message' type, we assume the user might be using Markdown, so we don't escape it.
         const text = msg.text || msg.caption || '';
         
         if (msg.photo) {
@@ -437,7 +435,7 @@ ${contentInstruction}
                 if (content.type === 'forward') {
                     sentMessage = await bot.forwardMessage(currentChatId, content.from_chat_id, content.message_id);
                 } else {
-                    const sendOptions = { parse_mode: 'Markdown' }; // Assume user content might have markdown
+                    const sendOptions = { parse_mode: 'Markdown' }; 
                     if (content.media?.type === 'photo') {
                         sentMessage = await bot.sendPhoto(currentChatId, content.media.file_id, { caption: content.text, ...sendOptions });
                     } else if (content.media?.type === 'video') {
@@ -451,7 +449,7 @@ ${contentInstruction}
                 if (isPin && isGroup && currentChatId !== ownerId) {
                     try {
                         const botMember = await bot.getChatMember(currentChatId, BOT_ID);
-                        if (botMember && botMember.status === 'administrator' && botMember.can_pin_messages) {
+                        if (botMember && (botMember.status === 'administrator' || botMember.status === 'creator') && botMember.can_pin_messages) {
                             await bot.pinChatMessage(currentChatId, sentMessage.message_id, { disable_notification: true });
                         }
                     } catch (pinError) {
@@ -462,10 +460,15 @@ ${contentInstruction}
             } catch (error) {
                 failCount++;
                 const errorDesc = error.response?.body?.description || '';
-                const isChatLost = error.response?.body?.error_code === 403 || 
+                const errorCode = error.response?.body?.error_code;
+                
+                const isChatLost = errorCode === 403 || 
+                                   errorCode === 400 ||
                                    errorDesc.includes('blocked') || 
                                    errorDesc.includes('kicked') ||
-                                   errorDesc.includes('chat not found');
+                                   errorDesc.includes('deactivated') ||
+                                   errorDesc.includes('chat not found') ||
+                                   errorDesc.includes('user is deactivated');
 
                 if (isChatLost) {
                     if (isGroup) {
@@ -475,6 +478,8 @@ ${contentInstruction}
                          await db.deactivateChat(currentChatId);
                          console.log(`[broadcast:execute] Deactivated user chat ${currentChatId}`);
                     }
+                } else {
+                    console.warn(`[broadcast:execute] Unhandled error for chat ${currentChatId}: ${errorDesc}`);
                 }
             }
             
@@ -517,7 +522,7 @@ ${i + 1 === total ? '🎉 تقریباً تمام شد\\!' : '⏳ لطفاً ص�
 \\- 📈 نرخ موفقیت: ${escapeMarkdownV2(total > 0 ? Math.floor((successCount/total)*100).toString() : '0')}%
 \\- ⏱ زمان کل: ${escapeMarkdownV2(durationSeconds.toString())} ثانیه
 
-${failCount > 0 ? boldText('⚠️ خطاها:\nاحتمالاً کاربران ربات را بلاک کرده‌اند یا از گروه خارج شده‌اند\\.') : ''}`;
+${failCount > 0 ? boldText('⚠️ خطاها:\nکاربران ربات را بلاک کرده‌اند یا از گروه خارج شده‌اند\\.\nاطلاعات آن‌ها از دیتابیس پاک شد\\.') : ''}`;
         
         const keyboard = {
             inline_keyboard: [

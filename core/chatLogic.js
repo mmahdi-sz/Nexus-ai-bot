@@ -49,7 +49,6 @@ export async function handleChatLogic(bot, msg, userPrompt, deps) {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     
-    // Optimized: Use cache for chat authorization check
     const cache = db.getAppCache();
     if (msg.chat.type !== 'private' && !cache.authorizedChats.has(chatId)) {
         console.log(`[chatLogic:handleChatLogic] END - Chat ID ${chatId} not authorized (from cache).`);
@@ -88,17 +87,13 @@ export async function handleChatLogic(bot, msg, userPrompt, deps) {
     }
 
     if (!limitCheck.allowed) {
-        let limitKey = 'limit_message_day';
-        if (limitCheck.type === 'week') limitKey = 'limit_message_week';
-        else if (limitCheck.type === 'month') limitKey = 'limit_message_month';
-        
-        const limitMessageTemplate = await db.getText(limitKey, "هی رفیق، می‌تونی با اهدای یک کلید API، بدون محدودیت باهام حرف بزنی. روی دکمه زیر بزن تا راهنماییت کنم 🤠");
+        const limitMessageTemplate = await db.getText('limit_message_day', "هی رفیق، می‌تونی با اهدای یک کلید API، بدون محدودیت باهام حرف بزنی. روی دکمه زیر بزن تا راهنماییت کنم 🤠");
 
-        const usageText = `\n\n\\- امروز: ${limitCheck.usage.day.used}\\/${limitCheck.usage.day.limit}\n\\- این هفته: ${limitCheck.usage.week.used}\\/${limitCheck.usage.week.limit}\n\\- این ماه: ${limitCheck.usage.month.used}\\/${limitCheck.usage.month.limit}`;
+        const usageText = `\n\n\\- امروز: ${limitCheck.usage.day.used}\\/${limitCheck.usage.day.limit}`;
         const finalLimitMessage = limitMessageTemplate + usageText;
         const helpButton = await limitManager.createAPIRequestButton();
         
-        console.log(`[chatLogic:handleChatLogic] END - User ${userId} hit limit: ${limitCheck.type}.`);
+        console.log(`[chatLogic:handleChatLogic] END - User ${userId} hit daily limit.`);
         return sendMessageSafe(bot, 
             chatId,
             finalLimitMessage,
@@ -268,7 +263,6 @@ export async function handleChatLogic(bot, msg, userPrompt, deps) {
 
         await db.saveDailyConversation(chatId, userId, historyToSave);
 
-        // Optimized: Read global_button and isGlobalButtonEnabled from cache
         const globalButton = cache.globalSettings.global_button;
         const isChatSpecial = await db.isSpecialChat(chatId);
         const buttonEnabled = cache.globalSettings.global_button_enabled;

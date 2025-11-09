@@ -46,11 +46,9 @@ export async function handleStatusCommand(bot, msg) {
     try {
         const isPremium = await db.isUserPremium(userId);
         const config = await db.getSetting('config', {});
-        const LIMITS = config.userLimits || { day: 10, week: 40, month: 100 };
+        const LIMITS = config.userLimits || { day: 26 };
         
         const dayCount = await db.getUserMessageCount(userId, 'day');
-        const weekCount = await db.getUserMessageCount(userId, 'week');
-        const monthCount = await db.getUserMessageCount(userId, 'month');
         
         let statusText = `📊 *وضعیت شما رفیق:*\n\n`;
         
@@ -62,9 +60,7 @@ export async function handleStatusCommand(bot, msg) {
                 'می‌خوای حامی بشی و بدون محدودیت حرف بزنیم؟\nدستور /donate رو بزن.');
                 
             statusText += `💬 *پیام‌های باقی‌مانده:*\n`;
-            statusText += `  \\- امروز: ${escapeMarkdownV2(dayCount.toString())}/${escapeMarkdownV2(LIMITS.day.toString())}\n`;
-            statusText += `  \\- این هفته: ${escapeMarkdownV2(weekCount.toString())}/${escapeMarkdownV2(LIMITS.week.toString())}\n`;
-            statusText += `  \\- این ماه: ${escapeMarkdownV2(monthCount.toString())}/${escapeMarkdownV2(LIMITS.month.toString())}\n\n`;
+            statusText += `  \\- امروز: ${escapeMarkdownV2(dayCount.toString())}/${escapeMarkdownV2(LIMITS.day.toString())}\n\n`;
             statusText += escapeMarkdownV2(noPremiumText);
         }
         

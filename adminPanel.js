@@ -176,6 +176,18 @@ export async function handleTextMessage(bot, msg, ownerState) {
                  return;
             }
             
+            if (newText.length < 5) {
+                const errorMessage = escapeMarkdownV2('⚠️ متن باید حداقل 5 کاراکتر باشد.');
+                await editMessageSafe(bot, chatId, originalPanelMessageId, errorMessage, { parse_mode: 'MarkdownV2' }).catch(() => {});
+                return;
+            }
+            
+            if (newText.length > 4000) {
+                const errorMessage = escapeMarkdownV2('⚠️ متن باید حداکثر 4000 کاراکتر باشد.');
+                await editMessageSafe(bot, chatId, originalPanelMessageId, errorMessage, { parse_mode: 'MarkdownV2' }).catch(() => {});
+                return;
+            }
+
             await db.setText(key, newText);
             await db.clearOwnerState(BOT_OWNER_ID);
             

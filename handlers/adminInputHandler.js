@@ -40,15 +40,27 @@ export async function handleAdminInput(bot, msg, ownerState) {
         if (msg.photo) {
             fileId = msg.photo[msg.photo.length - 1].file_id;
             fileType = 'photo';
-            fileSize = msg.photo[msg.photo.length - 1].file_size;
+            fileSize = msg.photo[msg.photo.length - 1].file_size || 0;
         } else if (msg.video) {
             fileId = msg.video.file_id;
             fileType = 'video';
-            fileSize = msg.video.file_size;
+            fileSize = msg.video.file_size || 0;
         } else if (msg.document) {
             fileId = msg.document.file_id;
             fileType = 'document';
-            fileSize = msg.document.file_size;
+            fileSize = msg.document.file_size || 0;
+            
+            const mimeType = msg.document.mime_type || '';
+            const allowedMimes = ['image/', 'video/', 'application/pdf'];
+            const isAllowedMime = allowedMimes.some(type => mimeType.startsWith(type));
+            
+            if (!isAllowedMime) {
+                await sendMessageSafe(bot, userId, 
+                    await db.getText('admin_invalid_file_type', 
+                    '❌ فقط عکس، ویدیو و PDF مجاز است.'));
+                console.log(`[adminInputHandler:handleAdminInput] END - Invalid MIME type: ${mimeType}.`);
+                return true;
+            }
         }
 
         if (fileId) {

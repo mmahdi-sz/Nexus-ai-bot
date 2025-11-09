@@ -93,14 +93,50 @@ export async function handleBotConfigInput(bot, msg, ownerState, originalPanelMe
             setTimeout(() => goBackTo('bot_management_main').catch(() => {}), 1500);
             return true;
         }
+
+        const urlRegex = /^https?:\/\/.+/i;
+        if (!urlRegex.test(url)) {
+            await editMessageSafe(bot, msg.chat.id, originalPanelMessageId, 
+                escapeMarkdownV2('⚠️ لینک نامعتبر است. لینک باید با http:// یا https:// شروع شود.'), 
+                { 
+                    inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_bot_management_main' }]],
+                    parse_mode: 'MarkdownV2'
+                }
+            ).catch(() => {});
+            return true;
+        }
+
+        if (url.length > 200) {
+            await editMessageSafe(bot, msg.chat.id, originalPanelMessageId, 
+                escapeMarkdownV2('⚠️ لینک باید کمتر از 200 کاراکتر باشد.'), 
+                { 
+                    inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_bot_management_main' }]],
+                    parse_mode: 'MarkdownV2'
+                }
+            ).catch(() => {});
+            return true;
+        }
+
         await db.setOwnerState(BOT_OWNER_ID, 'set_button_awaiting_text', { ...data, url: url });
-        const instructionText = '*مرحله ۲ از ۲: متن دکمه*\n\nلینک دریافت شد\\. اکنون متن مورد نظر برای نمایش روی دکمه را ارسال کنید\\. ';
+        const instructionText = '*مرحله ۲ از ۲: متن دکمه*\n\nلینک دریافت شد\\. اکنون متن مورد نظر برای نمایش روی دکمه را ارسال کنید\\.\n\n⚠️ *توجه:* متن باید بین 1 تا 64 کاراکتر باشد\\.';
         editMessageSafe(bot, msg.chat.id, originalPanelMessageId, instructionText, { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_bot_management_main' }]] } }).catch(() => {});
         return true;
     }
     
     if (state === 'set_button_awaiting_text') {
         const buttonText = text.trim();
+        
+        if (buttonText.length < 1 || buttonText.length > 64) {
+            await editMessageSafe(bot, msg.chat.id, originalPanelMessageId, 
+                escapeMarkdownV2('⚠️ متن دکمه باید بین 1 تا 64 کاراکتر باشد.'), 
+                { 
+                    inline_keyboard: [[{ text: '❌ لغو', callback_data: 'cancel_state_return_bot_management_main' }]],
+                    parse_mode: 'MarkdownV2'
+                }
+            ).catch(() => {});
+            return true;
+        }
+
         const buttonData = { text: buttonText, url: data.url };
         await db.setSetting('global_button', buttonData);
         await db.clearOwnerState(BOT_OWNER_ID);

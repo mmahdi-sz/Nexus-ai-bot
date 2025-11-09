@@ -26,21 +26,11 @@ export async function checkUserLimit(userId, appConfig) {
     const LIMITS = appConfig.userLimits;
 
     const dayCount = await db.getUserMessageCount(userId, 'day');
-    const weekCount = await db.getUserMessageCount(userId, 'week');
-    const monthCount = await db.getUserMessageCount(userId, 'month');
 
     const usage = {
         day: {
             used: dayCount,
             limit: LIMITS.day
-        },
-        week: {
-            used: weekCount,
-            limit: LIMITS.week
-        },
-        month: {
-            used: monthCount,
-            limit: LIMITS.month
         }
     };
     
@@ -59,26 +49,6 @@ export async function checkUserLimit(userId, appConfig) {
             allowed: false,
             type: 'day',
             message: message, 
-            usage
-        };
-    }
-
-    if (weekCount >= LIMITS.week) {
-        const message = await db.getText('limit_message_week', `سهمیه این هفته به پایان رسیده. هفته بعد برمی‌گردم.`);
-        return {
-            allowed: false,
-            type: 'week',
-            message: message,
-            usage
-        };
-    }
-
-    if (monthCount >= LIMITS.month) {
-        const message = await db.getText('limit_message_month', `این ماه به سقف پیام‌هات رسیدی. ماه بعد حرف می‌زنیم رفیق.`);
-        return {
-            allowed: false,
-            type: 'month',
-            message: message,
             usage
         };
     }
