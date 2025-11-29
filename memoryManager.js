@@ -1,3 +1,4 @@
+﻿
 import { GoogleGenAI } from '@google/genai';
 import * as db from './database.js';
 import * as security from './security.js';
@@ -99,3 +100,5 @@ export async function processAndSummarizeDailyLogs() {
 }
 
 export default { processAndSummarizeDailyLogs };
+
+

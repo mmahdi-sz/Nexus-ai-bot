@@ -1,3 +1,4 @@
+﻿
 import { getPool } from './connector.js';
 
 const DEFAULT_RETRIES = 3;
@@ -101,3 +102,5 @@ export async function dbTransaction(callback) {
         }
     }
 }
+
+

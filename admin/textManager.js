@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { editMessageSafe, escapeMarkdownV2, boldText, inlineCode } from '../utils/textFormatter.js';
 
@@ -244,3 +245,5 @@ export async function handleTextManagement(bot, msg, data) {
 
     return false;
 }
+
+

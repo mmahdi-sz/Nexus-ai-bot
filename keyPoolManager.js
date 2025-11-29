@@ -1,3 +1,4 @@
+﻿
 import { GoogleGenAI } from "@google/genai";
 import cron from 'node-cron';
 import crypto from 'crypto';
@@ -97,6 +98,10 @@ export async function getAvailableKeyInstance(appConfig) {
         }
 
         console.error("[keyPoolManager:getAvailableKeyInstance] END - No available API keys found in the pool.");
+        
+        const { sendCriticalAlert } = await import('./handlers/commands/backup.js');
+        await sendCriticalAlert('⚠️ هیچ کلید API فعالی باقی نمانده است! لطفاً فوراً کلید جدید اضافه کنید.');
+        
         return null;
     } catch (error) {
         console.error("[keyPoolManager:getAvailableKeyInstance] Error during key leasing process:", error);
@@ -143,10 +148,11 @@ export function scheduleKeyUsageReset() {
     console.log('[keyPoolManager:scheduleKeyUsageReset] END - Scheduled daily key usage reset to run at 00:00 UTC.');
 }
 
-
 export function resetKeyPool() {
     console.log(`[keyPoolManager:resetKeyPool] START - Clearing pool (Current size: ${keyPool.length}).`);
     keyPool = [];
     activeLeases.clear();
     console.log('[keyPoolManager:resetKeyPool] END - Pool and active leases cleared.');
 }
+
+

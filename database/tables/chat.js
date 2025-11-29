@@ -1,3 +1,4 @@
+﻿
 import { dbQuery } from '../repository.js';
 import { getAppCache } from '../../database.js';
 
@@ -100,3 +101,5 @@ export const getAllSpecialChats = () => {
     console.log(`[db:chat:getAllSpecialChats] Querying for special chats list.`);
     return dbQuery("SELECT * FROM special_chats ORDER BY chat_title");
 };
+
+

@@ -1,3 +1,4 @@
+﻿
 import crypto from 'crypto';
 import 'dotenv/config';
 
@@ -87,3 +88,5 @@ export function createDisplayName(apiKey) {
     const end = apiKey.substring(apiKey.length - 4);
     return `${start}...${end}`;
 }
+
+

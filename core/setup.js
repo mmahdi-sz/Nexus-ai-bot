@@ -1,9 +1,11 @@
+﻿
 import cron from 'node-cron';
 import * as db from '../database.js';
 import { prompts, filters } from '../prompts.js';
 import * as security from '../security.js';
 import * as keyPoolManager from '../keyPoolManager.js';
 import * as memoryManager from '../memoryManager.js';
+import { scheduleAutoBackup } from '../handlers/commands/backup.js';
 
 const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
 
@@ -30,7 +32,10 @@ async function setCommandMenu(bot) {
             { command: 'new', description: 'شروع مکالمه جدید' },
             { command: 'status', description: 'وضعیت و آمار پیام‌های من' },
             { command: 'forget', description: 'فراموش کردن حافظه من' },
-            { command: 'donate', description: 'اهدای کلید API برای استفاده نامحدود' }
+            { command: 'user', description: 'پنل مدیریت کاربر' },
+            { command: 'donate', description: 'اهدای کلید API برای استفاده نامحدود' },
+            { command: 'tone', description: 'تغییر لحن صحبت آرتور' },
+            { command: 'memory', description: 'تازه کردن حافظه آرتور از مکالمات' }
         ];
 
         const groupCommands = [
@@ -45,6 +50,7 @@ async function setCommandMenu(bot) {
             { command: 'broadcast', description: '📢 ارسال پیام همگانی' },
             { command: 'backup', description: '💾 پشتیبان‌گیری از دیتابیس' },
             { command: 'clearstates', description: '🗑️ پاکسازی وضعیت کاربران' },
+            { command: 'resetprompts', description: '🔄 ریست کردن پرامپت‌ها' },
             { command: 'help', description: 'راهنمای دستورات ادمین' }
         ];
 
@@ -117,7 +123,34 @@ async function startCronJobs() {
         timezone: "Asia/Tehran"
     });
     
+    cron.schedule('0 */6 * * *', async () => {
+        console.log('[setup:startCronJobs:cron] --- Updating Group Stats ---');
+        try {
+            const groupList = await db.getGroupDetailsList();
+            for (const group of groupList) {
+                if (!group.is_enabled) continue;
+                try {
+                    const chatDetails = await global.bot.getChat(group.chat_id);
+                    const memberCount = await global.bot.getChatMemberCount(group.chat_id);
+                    await db.updateGroupStats(group.chat_id, chatDetails.title, memberCount, true);
+                } catch (error) {
+                    console.error(`Failed to update stats for group ${group.chat_id}:`, error.message);
+                    if (error.response?.body?.description?.includes('chat not found')) {
+                        await db.purgeChatData(group.chat_id);
+                    }
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        } catch (error) {
+            console.error('[setup:startCronJobs:cron] Error updating group stats:', error);
+        }
+    }, {
+        scheduled: true,
+        timezone: "UTC"
+    });
+    
     keyPoolManager.scheduleKeyUsageReset();
+    scheduleAutoBackup();
 
     console.log('[setup:startCronJobs] END - Cron jobs scheduled.');
 }
@@ -172,3 +205,5 @@ export async function initializeApp(bot) {
     console.log('[setup:initializeApp] END - Initialization complete.');
     return { botInfo, appPrompts, appConfig };
 }
+
+

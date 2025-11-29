@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { editMessageSafe, escapeMarkdownV2 } from '../utils/textFormatter.js';
 import { generateDeletionMenu } from './adminHandlers.js';
@@ -50,7 +51,7 @@ export async function handleBotConfigCallback(bot, cbq, msg, data, goBackTo) {
             const chatDetails = await bot.getChat(msg.chat.id);
             await db.addSpecialChat(msg.chat.id, chatDetails.title);
             bot.answerCallbackQuery(cbq.id, { text: `گروه "${chatDetails.title}" به لیست ویژه اضافه شد.`, show_alert: true }).catch(() => { });
-            const successText = `✅ گروه *${escapeMarkdownV2(chatDetails.title)}* به لیست ویژه اضافه شد\\.\n\nدر گروه‌های ویژه، دکمه شیشه‌ای نمایش داده نمی‌شود\\.`;
+            const successText = `✅ گروه *${escapeMarkdownV2(chatDetails.title)}* به لیست ویژه اضافه شد\\.\n\nدر گروه‌های ویژه، دکمه شیشه‌ای نمایش داده نمی‌شود.`;
             return editMessageSafe(bot, msg.chat.id, msg.message_id, successText, { parse_mode: 'MarkdownV2', reply_markup: specialChatsKeyboard });
         } catch (error) {
             console.error("Error adding special chat:", error);
@@ -146,3 +147,5 @@ export async function handleBotConfigInput(bot, msg, ownerState, originalPanelMe
     }
     return false;
 }
+
+

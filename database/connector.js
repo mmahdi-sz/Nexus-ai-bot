@@ -1,3 +1,4 @@
+﻿
 import mysql from 'mysql2/promise';
 
 let pool;
@@ -16,7 +17,9 @@ export async function initializeConnector() {
             waitForConnections: true,
             connectionLimit: 10,
             queueLimit: 0,
-            charset: 'utf8mb4'
+            charset: 'utf8mb4',
+            enableKeepAlive: true,
+            keepAliveInitialDelay: 0
         });
         
         const connection = await pool.getConnection();
@@ -37,3 +40,5 @@ export function getPool() {
     }
     return pool;
 }
+
+

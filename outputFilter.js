@@ -1,3 +1,4 @@
+﻿
 export function containsArthurName(text) {
     if (!text || typeof text !== 'string') return false;
     
@@ -34,3 +35,5 @@ export const modelAck = {
     role: 'model',
     parts: [{ text: "حواسم هست رفیق. من آرتورم و همیشه همینطوری هستم." }]
 };
+
+

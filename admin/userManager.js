@@ -1,5 +1,6 @@
+﻿
 import * as db from '../database.js';
-import { editMessageSafe, escapeMarkdownV2, inlineCode, boldText } from '../utils/textFormatter.js';
+import { editMessageSafe, escapeMarkdownV2, inlineCode, boldText, codeBlock } from '../utils/textFormatter.js';
 
 const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
 
@@ -40,6 +41,11 @@ export async function handleUserManagementCallback(bot, cbq, msg, data) {
         const callbackAction = data === 'user_edit_list' ? 'edit' : 'delete';
         
         const keyboard = users.map(u => ([{ text: `${icon} ${u.display_name} (ID: ${u.user_id})`, callback_data: `user_${callbackAction}_select_${u.user_id}` }]));
+        
+        if (action === 'ویرایش') {
+            keyboard.push([{ text: '🧪 تست پرامپت', callback_data: `user_test_prompt_list` }]);
+        }
+
         keyboard.push([{ text: '↩️ بازگشت', callback_data: 'user_menu_main' }]);
         
         return editMessageSafe(bot, msg.chat.id, msg.message_id, `کدام فرد را برای **${action}** انتخاب می‌کنید؟`, { inline_keyboard: keyboard, parse_mode: 'Markdown' });
@@ -53,9 +59,24 @@ export async function handleUserManagementCallback(bot, cbq, msg, data) {
             [{ text: '🔢 ویرایش ID عددی', callback_data: `user_edit_field_id_${userId}` }],
             [{ text: '🏷️ ویرایش نام نمایشی', callback_data: `user_edit_field_name_${userId}` }],
             [{ text: '📜 ویرایش پرامپت', callback_data: `user_edit_field_prompt_${userId}` }],
+            [{ text: '🧪 تست پرامپت', callback_data: `user_test_prompt_${userId}` }],
             [{ text: '↩️ بازگشت', callback_data: 'user_edit_list' }]
         ];
         return editMessageSafe(bot, msg.chat.id, msg.message_id, escapeMarkdownV2(`ویرایش اطلاعات **${user.display_name} (ID: ${user.user_id})**`), { inline_keyboard: keyboard, parse_mode: 'MarkdownV2' });
+    }
+    
+    if (data.startsWith('user_test_prompt_')) {
+        const action = data.startsWith('user_test_prompt_execute') ? 'execute' : 'select';
+        if (action === 'select') {
+            // Handles "user_test_prompt_123" or list
+            if (data === 'user_test_prompt_list') {
+                 // Show list logic if needed, but currently it goes to select user first
+                 return handleUserManagementCallback(bot, cbq, msg, 'user_edit_list');
+            }
+            return handleUserTestPrompt(bot, cbq);
+        }
+        // Execute logic handled inside handleUserTestPrompt if needed, or we delegate back
+        return handleUserTestPrompt(bot, cbq);
     }
     
     if (data.startsWith('user_edit_field_')) {
@@ -204,3 +225,93 @@ export async function handleUserManagementInput(bot, msg, ownerState, originalPa
     }
     return false;
 }
+
+export async function handleUserTestPrompt(bot, cbq) {
+    const data = cbq.data;
+    const currentChatId = cbq.message.chat.id;
+    const messageId = cbq.message.message_id;
+
+    if (data.startsWith('user_test_prompt_execute_')) {
+        const userId = parseInt(data.split('_').pop(), 10);
+        await bot.answerCallbackQuery(cbq.id, { text: 'در حال ارسال پیام تست...' });
+        
+        const user = await db.getSpecialUser(userId);
+        if (!user) {
+            return editMessageSafe(bot, currentChatId, messageId, '❌ کاربر پیدا نشد.');
+        }
+
+        const testMessage = "سلام رفیق. فقط میخواستم ببینم لحن جدیدت چطوره؟";
+        
+        const systemInstruction = `--- USER ${user.user_id} TEST MODE ---
+This is a test of your specific prompt for user ${user.user_id} (${user.display_name}).
+Respond using ONLY the provided prompt as your core instruction, ignoring all other system context for this single message.
+YOUR RESPONSE MUST BE IN PERSIAN.
+Specific Prompt to use: ${user.prompt}`;
+        
+        try {
+            // We need an API key to test. We can use keyPoolManager or temporary instance if we have access.
+            // Since this file is not importing keyPoolManager, we'll assume 'bot' has a way or we need to import it.
+            // Better approach: Use apiService if possible, or just handle error if no keys.
+            
+            // FIX: Importing apiService dynamically to avoid circular dep issues if any, 
+            // or assume this function is called where apiService is available. 
+            // Actually, let's keep it simple: 
+            // We will use the 'keyPoolManager' to get a key manually here.
+            
+            const { getAvailableKeyInstance, releaseKey } = await import('../keyPoolManager.js');
+            const keyObject = await getAvailableKeyInstance({ keyDailyRequestLimit: 999999, keyDailyTokenLimit: 99999999 }); // Force get key
+            
+            if (!keyObject) {
+                 return editMessageSafe(bot, currentChatId, messageId, '❌ هیچ کلید API فعالی برای تست وجود ندارد.');
+            }
+
+            const result = await keyObject.instance.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: [{ role: "user", parts: [{ text: testMessage }] }],
+                config: { systemInstruction: systemInstruction }
+            });
+            
+            await releaseKey(keyObject);
+
+            const responseText = result.response.text();
+            
+            const finalText = `🧪 *نتیجه تست پرامپت برای ${escapeMarkdownV2(user.display_name)}*\n\n${boldText('پیام آرتور:')}\n${codeBlock(responseText)}\n\n[👇 بازگشت به تنظیمات]`;
+
+            await editMessageSafe(bot, currentChatId, messageId, finalText, {
+                reply_markup: {
+                    inline_keyboard: [[{ text: '◀️ بازگشت', callback_data: `user_edit_select_${userId}` }]]
+                },
+                parse_mode: 'MarkdownV2'
+            });
+
+        } catch (e) {
+            console.error(`Error testing user prompt ${userId}:`, e.message);
+            await editMessageSafe(bot, currentChatId, messageId, `❌ خطایی در زمان تست پرامپت رخ داد. (Error: ${e.message.substring(0, 50)})`);
+        }
+        return true;
+    }
+
+    const userId = parseInt(data.split('_').pop(), 10);
+    await bot.answerCallbackQuery(cbq.id).catch(() => {});
+    
+    const specialUser = await db.getSpecialUser(userId);
+    if (!specialUser) {
+        return bot.answerCallbackQuery(cbq.id, { text: 'کاربر یافت نشد', show_alert: true });
+    }
+    
+    const testText = `🧪 ${boldText('تست پرامپت برای ')}${escapeMarkdownV2(specialUser.display_name)}\n\n${codeBlock(specialUser.prompt)}\n\nآیا می‌خواهید این پرامپت را تست کنید؟`;
+    
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: '✅ تست با پیام نمونه', callback_data: `user_test_prompt_execute_${userId}` }],
+            [{ text: '◀️ بازگشت', callback_data: `user_edit_select_${userId}` }]
+        ]
+    };
+    
+    return editMessageSafe(bot, currentChatId, messageId, testText, {
+        reply_markup: keyboard,
+        parse_mode: 'MarkdownV2'
+    });
+}
+
+

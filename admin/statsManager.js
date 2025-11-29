@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { stripMarkdown, editMessageSafe, escapeMarkdownV2, boldText, inlineCode } from '../utils/textFormatter.js';
 
@@ -113,3 +114,5 @@ ${listText}`;
 
     return false;
 }
+
+

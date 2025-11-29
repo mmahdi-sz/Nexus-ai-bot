@@ -1,3 +1,4 @@
+﻿
 export function escapeMarkdownV2(text) {
     if (!text || typeof text !== 'string') return '';
     const escaped = text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -124,4 +125,4 @@ export async function editMessageSafe(bot, chatId, messageId, text, options = {}
         console.error('[textFormatter:editMessageSafe] Failed to edit message:', error.message);
         throw error;
     }
-}
+}

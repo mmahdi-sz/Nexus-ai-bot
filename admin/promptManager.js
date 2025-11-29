@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { prompts } from '../prompts.js';
 import { editMessageSafe, sendMessageSafe, boldText, codeBlock, inlineCode, escapeMarkdownV2 } from '../utils/textFormatter.js';
@@ -107,10 +108,8 @@ async function handlePromptCompare(bot, cbq, msg, mainKey, subKey) {
 
 async function handlePromptReset(bot, cbq, msg, mainKey, subKey) {
     const ownerId = cbq.from.id;
-    // FIX 1: Move answerCallbackQuery to the start to prevent ETELEGRAM timeout
     await bot.answerCallbackQuery(cbq.id, { text: '🔄 بازگردانی به پیش‌فرض...' }).catch(() => {});
     
-    // FIX 2: Validate the keys to handle malformed data gracefully
     if (!mainKey || !subKey) {
          console.error(`[handlePromptReset] Invalid keys: ${mainKey}.${subKey}`);
          const errorText = await db.getText('admin_error', '⚠️ یک خطای داخلی در پردازش پیام شما رخ داد\\. عملیات لغو شد\\. \\(خطای کلید پرامپت\\)');
@@ -118,7 +117,7 @@ async function handlePromptReset(bot, cbq, msg, mainKey, subKey) {
             reply_markup: { inline_keyboard: [[{ text: '🏠 بازگشت به پنل', callback_data: 'admin_panel' }]] },
             parse_mode: 'MarkdownV2'
          });
-         return;
+         return true;
     }
 
     const currentPrompts = await db.getSetting('prompts', prompts);
@@ -126,7 +125,6 @@ async function handlePromptReset(bot, cbq, msg, mainKey, subKey) {
 
     if (!defaultPrompt) {
         console.error(`[handlePromptReset] Default prompt not found for ${mainKey}.${subKey}`);
-        // FIX 3: Respond gracefully with an edit
         const errorText = await db.getText('admin_error', `❌ پرامپت پیش‌فرض برای ${inlineCode(mainKey)} ➜ ${inlineCode(subKey)} یافت نشد\\. عملیات لغو شد\\.`);
         return editMessageSafe(bot, msg.chat.id, msg.message_id, errorText, {
             reply_markup: { inline_keyboard: [[{ text: '◀️ بازگشت', callback_data: `prompt_menu_${mainKey}` }]] },
@@ -151,14 +149,12 @@ ${boldText('پرامپت:')} ${inlineCode(mainKey)} ➜ ${inlineCode(subKey)}
 
 به نسخه پیش‌فرض بازگردانی شد\\. برای بررسی روی ${boldText('◀️ بازگشت')} کلیک کنید\\.`;
 
-    // FIX 1: Add return here to prevent "No handler found" warning
     return editMessageSafe(bot, msg.chat.id, msg.message_id, successText, {
         reply_markup: { inline_keyboard: [[{ text: '◀️ بازگشت', callback_data: `prompt_menu_${mainKey}` }]] },
         parse_mode: 'MarkdownV2'
     });
 }
 
-// FIX 2: Implementation of the missing function handlePromptFullEdit
 export async function handlePromptFullEdit(bot, cbq, msg, mainKey, subKey) {
     const ownerId = cbq.from.id;
     await bot.answerCallbackQuery(cbq.id).catch(() => {});
@@ -170,18 +166,16 @@ export async function handlePromptFullEdit(bot, cbq, msg, mainKey, subKey) {
     
     const backCallback = `prompt_menu_${mainKey}`;
     
-    // 1. Set the new state: Initial text is the current prompt, message_count is 0
     await db.setOwnerState(ownerId, `editing_prompt_full_${mainKey}_${subKey}`, {
         message_id: msg.message_id,
         main_key: mainKey,
         sub_key: subKey,
-        collected_text: currentPrompt, // Pre-fill with current content
+        collected_text: currentPrompt,
         message_count: 0,
         timeout_at: Date.now() + PROMPT_EDIT_TIMEOUT_MS,
         return_callback: backCallback
     });
     
-    // 2. Prepare instructions (UPDATED INSTRUCTION TEXT)
     const instructionText = `✏️ ${boldText('ویرایش کامل پرامپت')}
 
 ${boldText('مسیر:')} ${inlineCode(mainKey)} ➜ ${inlineCode(subKey)}
@@ -195,13 +189,11 @@ ${boldText('مسیر:')} ${inlineCode(mainKey)} ➜ ${inlineCode(subKey)}
 
     const keyboard = {
         inline_keyboard: [
-            // Button text will be updated by handlePromptEditInput after receiving text
             [{ text: '✅ اتمام ویرایش', callback_data: `prompt_finish_edit_${mainKey}_${subKey}` }],
             [{ text: '❌ لغو', callback_data: `cancel_state_return_${backCallback}` }]
         ]
     };
     
-    // 3. Edit the message to show instructions and the 'Finish' button
     return editMessageSafe(bot, msg.chat.id, msg.message_id, instructionText, {
         reply_markup: keyboard,
         parse_mode: 'MarkdownV2'
@@ -222,7 +214,6 @@ export async function handlePromptEditWizard(bot, cbq, msg, mainKey, subKey) {
     const charCount = currentPrompt.length;
     const lineCount = currentPrompt.split('\n').length;
     
-    // Building infoText without a single global escapeMarkdownV2 wrapper
     const infoText = `📝 ${boldText('ویرایش پرامپت')}
 
 ${boldText('مسیر:')} ${inlineCode(mainKey)} ➜ ${inlineCode(subKey)}
@@ -287,12 +278,9 @@ export async function handlePromptEditInput(bot, msg, ownerState) {
     let updatedText;
     let finalMessageCount = message_count + 1;
 
-    // FIX 3: New logic for replacing old content on the first message, and appending on subsequent messages.
     if (message_count === 0) {
-        // First message (message_count was 0): Replace the pre-filled content (collected_text) with the user's new input.
-        updatedText = newText; 
+        updatedText = newText;
     } else {
-        // Subsequent messages: Append with a newline.
         const separator = (collected_text.length > 0) ? '\n' : '';
         updatedText = collected_text + separator + newText;
     }
@@ -308,7 +296,7 @@ export async function handlePromptEditInput(bot, msg, ownerState) {
     await db.setOwnerState(ownerId, ownerState.state, {
         ...ownerState.data,
         collected_text: updatedText,
-        message_count: finalMessageCount // Use the new count
+        message_count: finalMessageCount
     });
     
     const buttonText = `📝 ${escapeMarkdownV2(finalMessageCount.toString())} پیام دریافت شد \\(${escapeMarkdownV2(updatedText.length.toString())} حرف\\)`;
@@ -427,7 +415,6 @@ export async function handlePromptMenu(bot, msg, data) {
         const keys = data.replace('prompt_edit_full_', '').split('_');
         const mainKey = keys[0];
         const subKey = keys[1];
-        // FIX 2: Correctly calling the newly defined function
         return handlePromptFullEdit(bot, { ...msg, from: { id: BOT_OWNER_ID }, data: data }, msg, mainKey, subKey);
     }
     
@@ -453,7 +440,6 @@ export async function handlePromptMenu(bot, msg, data) {
     }
     
     if (data.startsWith('prompt_reset_confirm_')) {
-        // FIX B-1: Re-structure for a safe key path transfer
         const keyPath = data.replace('prompt_reset_confirm_', '');
         const [mainKey, subKey] = keyPath.split('_');
 
@@ -463,7 +449,7 @@ export async function handlePromptMenu(bot, msg, data) {
         
         const keyboard = {
             inline_keyboard: [
-                [{ text: '✅ بله، بازگردانی شود', callback_data: `prompt_reset_${keyPath}` }], // FIX B-1: Correct callback data
+                [{ text: '✅ بله، بازگردانی شود', callback_data: `prompt_reset_${keyPath}` }],
                 [{ text: '❌ لغو', callback_data: `cancel_state_return_prompt_menu_${mainKey}` }]
             ]
         };
@@ -472,18 +458,21 @@ export async function handlePromptMenu(bot, msg, data) {
     }
     
     if (data.startsWith('prompt_reset_')) {
-        // FIX B-2: Use the transferred keyPath
         const [mainKey, subKey] = data.replace('prompt_reset_', '').split('_');
         return handlePromptReset(bot, { ...msg, from: { id: BOT_OWNER_ID }, data: data }, msg, mainKey, subKey);
     }
     
     if (data.startsWith('prompt_edit_cancel_')) {
-        const backCallback = data.split('_').slice(3).join('_');
+        const keys = data.replace('prompt_edit_cancel_', '').split('_');
+        const mainKey = keys[0];
+        const subKey = keys[1];
         await db.clearOwnerState(BOT_OWNER_ID);
         await bot.answerCallbackQuery(msg.id, { text: '❌ عملیات ویرایش لغو شد.' }).catch(() => {});
-        return handlePromptEditWizard(bot, { ...msg, from: { id: BOT_OWNER_ID }, data: `prompt_edit_${backCallback}` }, msg, backCallback.split('_')[0], backCallback.split('_')[1]);
+        return handlePromptMenu(bot, msg, `prompt_edit_${mainKey}_${subKey}`);
     }
 
 
     return false;
 }
+
+

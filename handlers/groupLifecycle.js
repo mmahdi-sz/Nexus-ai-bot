@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { sendMessageSafe } from '../utils/textFormatter.js';
 import { handleTelegramApiError } from '../core/chatLogic.js';
@@ -13,6 +14,26 @@ export async function handleEnableCommand(bot, msg) {
         const privateOnlyText = await db.getText('enable_private_only', "این دستور فقط در گروه‌ها کار می‌کنه رفیق.");
         sendMessageSafe(bot, msg.chat.id, privateOnlyText);
         return;
+    }
+
+    const args = msg.text.split(' ');
+    
+    if (args[1] === 'backup') {
+        const chatMember = await bot.getChatMember(msg.chat.id, msg.from.id);
+        const isAdmin = ['creator', 'administrator'].includes(chatMember.status);
+
+        if (!isAdmin) {
+            return sendMessageSafe(bot, msg.chat.id, "فقط ادمین‌ها می‌تونن این کار رو انجام بدن.");
+        }
+
+        const chatDetails = await bot.getChat(msg.chat.id);
+        
+        if (chatDetails.type !== 'channel' && chatDetails.type !== 'supergroup') {
+            return sendMessageSafe(bot, msg.chat.id, "این گروه باید کانال یا سوپرگروه باشه.");
+        }
+
+        await db.setBackupChannel(msg.chat.id, chatDetails.title);
+        return sendMessageSafe(bot, msg.chat.id, `✅ کانال "${chatDetails.title}" به عنوان محل ذخیره بکاپ تنظیم شد.\n\nهر 4 ساعت یکبار بکاپ اینجا ارسال می‌شه.`);
     }
 
     try {
@@ -43,7 +64,7 @@ export async function handleEnableCommand(bot, msg) {
             true
         );
 
-        const enableSuccessText = await db.getText('enable_success', "دار و دسته ما تو این منطقه کمپ زدن! آرتور آماده‌است.");
+        const enableSuccessText = await db.getText('enable_success', "دار و دسته ما توی این منطقه کمپ زدن! آرتور آماده‌است.");
         await sendMessageSafe(bot, msg.chat.id, enableSuccessText);
 
     } catch (error) {
@@ -82,7 +103,7 @@ export async function handleNewChatMembers(bot, msg) {
                 );
             }
             
-            const welcomeMessage = await db.getText('enable_success', "دار و دسته ما تو این منطقه کمپ زدن! آرتور آماده‌است.");
+            const welcomeMessage = await db.getText('enable_success', "دار و دسته ما توی این منطقه کمپ زدن! آرتور آماده‌است.");
 
             sendMessageSafe(bot, msg.chat.id, welcomeMessage).catch(async (error) => {
                 handleTelegramApiError(error, `on:message - new member welcome`);
@@ -96,3 +117,5 @@ export async function handleNewChatMembers(bot, msg) {
         console.error('[groupLifecycle:handleNewChatMembers] Error in new_chat_members handler:', error.message);
     }
 }
+
+

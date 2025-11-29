@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import * as keyPoolManager from '../keyPoolManager.js';
 import * as security from '../security.js';
@@ -170,15 +171,21 @@ export async function handleUserKeyDonation(bot, msg) {
     
     bot.deleteMessage(msg.chat.id, msg.message_id).catch(() => {});
 
-    if (text === '/cancel' || text === '❌ انصراف') {
+    if (!userState.data?.timeout_at) {
         await db.clearUserState(userId);
-        await sendMessageSafe(bot, msg.chat.id, `${boldText('❌ عملیات لغو شد')}\n\nلطفاً دوباره با ${inlineCode('/donate')} شروع کنید\\.`, { parse_mode: 'MarkdownV2' });
+        await sendMessageSafe(bot, msg.chat.id, `${boldText('❌ خطا در سیستم')}\n\nلطفاً با ${inlineCode('/donate')} دوباره شروع کنید\\.`, { parse_mode: 'MarkdownV2' });
         return true;
     }
-    
+
     if (Date.now() > userState.data.timeout_at) {
         await db.clearUserState(userId);
         await sendMessageSafe(bot, msg.chat.id, `${boldText('⏱ زمان شما تمام شد')}\n\nلطفاً دوباره با ${inlineCode('/donate')} شروع کنید\\.`, { parse_mode: 'MarkdownV2' });
+        return true;
+    }
+
+    if (text === '/cancel' || text === '❌ انصراف') {
+        await db.clearUserState(userId);
+        await sendMessageSafe(bot, msg.chat.id, `${boldText('❌ عملیات لغو شد')}\n\nلطفاً دوباره با ${inlineCode('/donate')} شروع کنید\\.`, { parse_mode: 'MarkdownV2' });
         return true;
     }
     
@@ -286,3 +293,5 @@ ${inlineCode('/help')} ← راهنمای استفاده`;
     
     return true;
 }
+
+

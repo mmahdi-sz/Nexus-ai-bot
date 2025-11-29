@@ -1,3 +1,4 @@
+﻿
 import * as db from '../../database.js';
 import { sendMessageSafe, escapeMarkdownV2 } from '../../utils/textFormatter.js';
 import { handleTelegramApiError } from '../../core/chatLogic.js';
@@ -90,3 +91,99 @@ export async function handleDonateCommand(bot, msg) {
         handleTelegramApiError(error, 'handleDonateCommand');
     }
 }
+
+export async function handleUserCommand(bot, msg) {
+    const userId = msg.from.id;
+    const chatId = msg.chat.id;
+
+    if (msg.chat.type !== 'private') {
+        return sendMessageSafe(bot, chatId, "این دستور فقط در چت خصوصی کار می‌کنه.");
+    }
+
+    const isPremium = await db.isUserPremium(userId);
+
+    let statusText = `👤 **پروفایل شما**\n\n`;
+    statusText += isPremium ? `⭐️ شما یک **حامی** هستید!\n\n` : `👤 کاربر عادی\n\n`;
+
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: '🧠 مدیریت حافظه', callback_data: 'user_memory_manage' }],
+            [{ text: '📊 وضعیت پیام‌ها', callback_data: 'user_show_status' }],
+            [{ text: '❌ بستن', callback_data: 'user_close_panel' }]
+        ]
+    };
+
+    sendMessageSafe(bot, chatId, statusText, {
+        reply_markup: keyboard,
+        parse_mode: 'Markdown'
+    });
+}
+
+export async function handleToneCommand(bot, msg) {
+    const userId = msg.from.id;
+    const chatId = msg.chat.id;
+    
+    try {
+        const currentTone = await db.getUserTone(userId);
+        
+        const keyboard = {
+            inline_keyboard: [
+                [
+                    { 
+                        text: currentTone === 'rude' ? '✅ بی‌ادب و فحش‌دار' : '⚪️ بی‌ادب و فحش‌دار', 
+                        callback_data: 'tone_set_rude' 
+                    }
+                ],
+                [
+                    { 
+                        text: currentTone === 'polite' ? '✅ با ادب و مشتی' : '⚪️ با ادب و مشتی', 
+                        callback_data: 'tone_set_polite' 
+                    }
+                ]
+            ]
+        };
+        
+        const text = `🎭 *تنظیم لحن آرتور*
+
+لحن فعلی: *${currentTone === 'rude' ? 'بی‌ادب و فحش‌دار' : 'با ادب و مشتی'}*
+
+لحن مورد نظر رو انتخاب کن:`;
+        
+        await sendMessageSafe(bot, chatId, text, {
+            reply_markup: keyboard,
+            reply_to_message_id: msg.message_id
+        });
+    } catch (error) {
+        handleTelegramApiError(error, 'handleToneCommand');
+    }
+}
+
+export async function handleRefreshMemoryCommand(bot, msg) {
+    const userId = msg.from.id;
+    const chatId = msg.chat.id;
+    
+    try {
+        const history = await db.getDailyConversation(chatId, userId);
+        
+        if (!history || history.length < 10) {
+            return sendMessageSafe(bot, chatId, 
+                'هنوز به اندازه کافی با هم حرف نزدیم که چیزی یادم بمونه رفیق.',
+                { reply_to_message_id: msg.message_id }
+            );
+        }
+        
+        const memoryManager = await import('../../memoryManager.js');
+        const summary = await memoryManager.processAndSummarizeDailyLogs();
+        
+        if (summary) {
+            await sendMessageSafe(bot, chatId, 
+                '✅ حافظه‌ام رو تازه کردم. الان بهتر یادمه چی‌کارا هستی.',
+                { reply_to_message_id: msg.message_id }
+            );
+        }
+    } catch (error) {
+        handleTelegramApiError(error, 'handleRefreshMemoryCommand');
+    }
+}
+
+

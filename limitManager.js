@@ -1,3 +1,4 @@
+﻿
 import * as db from './database.js';
 import { checkPrivateChatStatus } from './core/chatLogic.js';
 
@@ -89,3 +90,5 @@ export async function createPrivateChatRequiredButton() {
         ]]
     };
 }
+
+

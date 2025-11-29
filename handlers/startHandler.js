@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { sendMessageSafe } from '../utils/textFormatter.js';
 import { handleCallbackQuery } from '../adminPanel.js';
@@ -130,3 +131,5 @@ export async function handleStartCommand(bot, msg, match) {
         console.error('[startHandler:handleStartCommand] Error in /start handler for user:', error.message);
     }
 }
+
+

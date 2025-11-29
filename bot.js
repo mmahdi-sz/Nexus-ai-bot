@@ -1,24 +1,27 @@
+﻿
 import 'dotenv/config';
 import TelegramBot from 'node-telegram-bot-api';
 import { initializeApp } from './core/setup.js';
 import { registerEventHandlers } from './handlers/eventHandlers.js';
+import { initializeLogging, cleanOldLogs } from './utils/logManager.js';
 
 process.on('uncaughtException', (error, origin) => {
     console.error('--- [FATAL UNCAUGHT EXCEPTION] ---');
-    console.error(`Caught exception:`, error);
-    console.error(`Exception origin:`, origin);
+    console.error(error);
+    console.error(origin);
 });
 process.on('unhandledRejection', (reason, promise) => {
     console.error('--- [FATAL UNHANDLED REJECTION] ---');
-    console.error('Unhandled Rejection at:', promise);
-    console.error('Reason:', reason);
+    console.error(promise);
+    console.error(reason);
 });
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
+const BOT_OWNER_IDS_STR = process.env.BOT_OWNER_IDS || process.env.BOT_OWNER_ID || '0';
+const BOT_OWNER_IDS = BOT_OWNER_IDS_STR.split(',').map(id => parseInt(id.trim(), 10)).filter(id => id > 0);
 
-if (!TELEGRAM_BOT_TOKEN || !BOT_OWNER_ID) {
-    console.error('FATAL ERROR: Make sure TELEGRAM_BOT_TOKEN and BOT_OWNER_ID are in your .env file.');
+if (!TELEGRAM_BOT_TOKEN || BOT_OWNER_IDS.length === 0) {
+    console.error('FATAL ERROR: Make sure TELEGRAM_BOT_TOKEN and BOT_OWNER_IDS are in your .env file.');
     process.exit(1);
 }
 
@@ -33,6 +36,8 @@ const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, {
     }
 });
 
+global.bot = bot;
+
 let botInfo = {};
 let appPrompts = {};
 let appConfig = {};
@@ -41,20 +46,16 @@ const activeUsers = new Set();
 const reinforcedUsersThisSession = new Set();
 
 function startMemoryCleanupJobs() {
-    console.log('[bot:startMemoryCleanupJobs] START - Scheduling cleanup jobs.');
-    
     const MAX_COOLDOWNS = 10000;
     const COOLDOWN_RETENTION_MS = 3600000; 
 
     setInterval(() => {
         if (userCooldowns.size > MAX_COOLDOWNS) {
-            console.warn(`[bot:cleanup] userCooldowns size (${userCooldowns.size}) exceeded limit of ${MAX_COOLDOWNS}. Clearing all entries.`);
             userCooldowns.clear();
             return;
         }
 
         const now = Date.now();
-        let cleanedCount = 0;
         const toDelete = [];
         
         for (const [userId, timestamp] of userCooldowns.entries()) {
@@ -65,39 +66,34 @@ function startMemoryCleanupJobs() {
         
         toDelete.forEach(userId => {
             userCooldowns.delete(userId);
-            cleanedCount++;
         });
-
-        if (cleanedCount > 0) {
-            console.log(`[bot:cleanup] Removed ${cleanedCount} old entries from userCooldowns. Remaining: ${userCooldowns.size}`);
-        }
     }, 600000); 
 
     setInterval(() => {
         const size = activeUsers.size;
         if (size > 100) {
             activeUsers.clear();
-            console.warn(`[bot:cleanup] activeUsers size exceeded 100 (${size}), clearing all stale entries.`);
         }
     }, 120000); 
 
     setInterval(() => {
         reinforcedUsersThisSession.clear();
-        console.log('[bot:startMemoryCleanupJobs] reinforcedUsersThisSession cleared for the new day.');
     }, 24 * 60 * 60 * 1000); 
     
-    console.log('[bot:startMemoryCleanupJobs] END - All cleanup jobs scheduled successfully.');
+    setInterval(async () => {
+        await cleanOldLogs(30);
+    }, 24 * 60 * 60 * 1000);
 }
 
-
 async function main() {
-    console.log('[bot:main] START - Initializing application.');
+    await initializeLogging();
+    
     ({ botInfo, appPrompts, appConfig } = await initializeApp(bot));
     
     startMemoryCleanupJobs();
 
     registerEventHandlers(bot, {
-        BOT_OWNER_ID,
+        BOT_OWNER_ID: BOT_OWNER_IDS[0],
         botInfo,
         appPrompts,
         appConfig,
@@ -105,9 +101,6 @@ async function main() {
         activeUsers,
         reinforcedUsersThisSession
     });
-
-    console.log(`[bot:main] Arthur Morgan (${botInfo.username}) is ready to ride.`);
-    console.log('[bot:main] END - Application fully initialized.');
 }
 
 bot.on('polling_error', (error) => {
@@ -119,3 +112,5 @@ bot.on('polling_error', (error) => {
 });
 
 main();
+
+

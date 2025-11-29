@@ -1,3 +1,4 @@
+﻿
 import { dbQuery, dbTransaction } from './repository.js';
 
 const TABLE_CREATION_QUERIES = [
@@ -135,9 +136,32 @@ const TABLE_CREATION_QUERIES = [
         button_text VARCHAR(255) DEFAULT 'کمک به خرید فشنگ و دینامیت برای آرتور',
         button_url VARCHAR(2048),
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
+
+    `CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id BIGINT PRIMARY KEY,
+        tone_mode VARCHAR(50) DEFAULT 'polite',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
+
+    `CREATE TABLE IF NOT EXISTS backup_channels (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        channel_id BIGINT NOT NULL UNIQUE,
+        channel_title VARCHAR(255),
+        enabled BOOLEAN DEFAULT 1,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`,
+
+    `CREATE TABLE IF NOT EXISTS user_limit_notifications (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id BIGINT NOT NULL,
+        period VARCHAR(50) NOT NULL,
+        notified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_notification (user_id, period),
+        INDEX idx_notified_at (notified_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 ];
-
 
 const ALTER_TABLE_QUERIES = [
     
@@ -224,7 +248,6 @@ export async function runMigrations() {
         await dbQuery(query);
     }
 
-    
     for (const setting of DEFAULT_SETTINGS) {
         await dbQuery(setting.sql);
     }
@@ -236,3 +259,5 @@ export async function runMigrations() {
         );
     }
 }
+
+

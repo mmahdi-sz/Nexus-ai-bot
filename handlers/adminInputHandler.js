@@ -1,8 +1,9 @@
+﻿
 import * as db from '../database.js';
 import { sendMessageSafe } from '../utils/textFormatter.js';
 import { handleTextMessage } from '../adminPanel.js'; 
+import { isOwner } from '../utils/ownerCheck.js';
 
-const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
 const MAX_MEDIA_FILES = 8;
 const MAX_FILE_SIZE_MB = 20;
 const ALLOWED_FILE_TYPES = ['photo', 'video', 'document'];
@@ -15,7 +16,7 @@ export async function handleAdminInput(bot, msg, ownerState) {
     console.log(`[adminInputHandler:handleAdminInput] START (User: ${msg.from.id}, State: ${ownerState.state})`);
     const userId = msg.from.id;
 
-    if (userId !== BOT_OWNER_ID) {
+    if (!isOwner(userId)) {
         console.log('[adminInputHandler:handleAdminInput] END - Not owner.');
         return false;
     }
@@ -101,7 +102,7 @@ export async function handleAdminInput(bot, msg, ownerState) {
             const mediaObject = { fileId, fileType, caption };
             currentData.media.push(mediaObject);
 
-            await db.setOwnerState(BOT_OWNER_ID, ownerState.state, currentData);
+            await db.setOwnerState(userId, ownerState.state, currentData);
 
             const displayInfo = fileType === 'photo' ? 'عکس' : fileType === 'video' ? 'ویدیو' : 'فایل';
             await sendMessageSafe(bot, userId, `✅ ${displayInfo} دریافت شد. (${currentData.media.length} فایل تا کنون)`);
@@ -132,3 +133,5 @@ export async function handleAdminInput(bot, msg, ownerState) {
     console.log('[adminInputHandler:handleAdminInput] END - Message type not handled.');
     return false;
 }
+
+

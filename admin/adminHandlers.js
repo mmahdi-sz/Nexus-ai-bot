@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { GoogleGenAI } from '@google/genai';
 
@@ -48,3 +49,5 @@ export async function validateApiKey(apiKey) {
         return { isValid: false, reason: 'generic' };
     }
 }
+
+

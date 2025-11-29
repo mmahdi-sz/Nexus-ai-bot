@@ -1,3 +1,4 @@
+﻿
 import { dbQuery } from '../repository.js';
 
 export const getText = async (key, defaultValue = null) => {
@@ -26,3 +27,5 @@ export const getTextsByCategory = (category) => {
     console.log(`[db:texts:getTextsByCategory] Querying (Category: ${category})`);
     return dbQuery("SELECT * FROM tutorial_texts WHERE text_key LIKE ? ORDER BY text_key", [`${category}%`]);
 };
+
+

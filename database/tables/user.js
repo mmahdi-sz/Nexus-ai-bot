@@ -1,5 +1,7 @@
+﻿
 import { dbQuery } from '../repository.js';
 
+// --- Special Users ---
 export const addSpecialUser = (userId, displayName, prompt) => {
     return dbQuery(
         `INSERT INTO special_users (user_id, display_name, prompt) VALUES (?, ?, ?)`,
@@ -32,6 +34,7 @@ export const updateSpecialUser = (originalUserId, { newUserId, newDisplayName, n
     return dbQuery(sql, params);
 };
 
+// --- Conversations ---
 export const getDailyConversation = async (chatId, userId) => {
     const rows = await dbQuery("SELECT history_json FROM daily_conversations WHERE chat_id = ? AND user_id = ?", [chatId, userId]);
     return rows.length > 0 ? rows[0].history_json : []; 
@@ -54,6 +57,7 @@ export const clearDailyConversations = () => {
     return dbQuery("DELETE FROM daily_conversations");
 };
 
+// --- Memories ---
 export const getUserMemory = async (userId) => {
     const rows = await dbQuery("SELECT summary FROM user_memories WHERE user_id = ?", [userId]);
     return rows.length > 0 ? rows[0] : null;
@@ -72,6 +76,7 @@ export const updateUserMemory = async (userId, newSummary) => {
     );
 };
 
+// --- Stats ---
 export const logUserMessage = (userId, chatId) => {
     const today = new Date().toISOString().split('T')[0];
     return dbQuery(
@@ -127,6 +132,7 @@ export const getAllUserIds = () => {
     return dbQuery(`SELECT DISTINCT user_id FROM user_message_stats`);
 };
 
+// --- States ---
 export const setUserState = (userId, state, data = {}) => {
     return dbQuery(
         `INSERT INTO user_state (user_id, state, data) VALUES (?, ?, ?)
@@ -179,6 +185,7 @@ export const clearOwnerState = (ownerId) => {
     );
 };
 
+// --- API Limits & Cooldowns ---
 export const canRequestAPI = async (userId) => {
     const cooldownHours = 4;
     const rows = await dbQuery(
@@ -223,3 +230,36 @@ export const getAPIRequestCooldown = async (userId) => {
 
     return { hours, minutes };
 };
+
+// --- TONE PREFERENCES ---
+export const setUserTone = (userId, toneMode) => {
+    return dbQuery(
+        `INSERT INTO user_preferences (user_id, tone_mode) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE tone_mode = ?`,
+        [userId, toneMode, toneMode]
+    );
+};
+
+export const getUserTone = async (userId) => {
+    const rows = await dbQuery("SELECT tone_mode FROM user_preferences WHERE user_id = ?", [userId]);
+    return rows.length > 0 ? rows[0].tone_mode : 'polite';
+};
+
+// --- LIMIT NOTIFICATIONS (Prevent multiple messages) ---
+export const hasReceivedLimitMessage = async (userId, period = 'day') => {
+    const rows = await dbQuery(
+        `SELECT 1 FROM user_limit_notifications WHERE user_id = ? AND period = ? AND notified_at > (NOW() - INTERVAL 1 DAY)`,
+        [userId, period]
+    );
+    return rows.length > 0;
+};
+
+export const markLimitMessageSent = (userId, period = 'day') => {
+    return dbQuery(
+        `INSERT INTO user_limit_notifications (user_id, period, notified_at) VALUES (?, ?, NOW())
+         ON DUPLICATE KEY UPDATE notified_at = NOW()`,
+        [userId, period]
+    );
+};
+
+

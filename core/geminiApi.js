@@ -1,3 +1,4 @@
+﻿
 import { GoogleGenAI } from '@google/genai';
 import * as db from '../database.js';
 
@@ -181,3 +182,5 @@ export async function generateResponseWithFallback(keyInstance, generationParams
     console.log('[geminiApi:generateResponseWithFallback] END - All models failed.');
     throw lastError || new Error("All models failed without a specific error.");
 }
+
+

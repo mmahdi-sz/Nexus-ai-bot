@@ -1,3 +1,4 @@
+﻿
 import { initializeConnector, getPool } from './database/connector.js';
 import { dbQuery, dbTransaction } from './database/repository.js';
 import { runMigrations } from './database/migrations.js';
@@ -91,10 +92,21 @@ export { dbQuery, dbTransaction };
 
 export const { addChat, deactivateChat, isChatAuthorized, updateGroupStats, getAllGroupStats, getGroupDetailsList, addSpecialChat, removeSpecialChat, isSpecialChat, getAllSpecialChats } = ChatRepo;
 
-export const { setSetting, getSetting, toggleGlobalButton, isGlobalButtonEnabled, addTutorialMedia, getAllTutorialMedia, clearTutorialMedia, setTutorialTextForApi, getTutorialTextForApi } = ConfigRepo;
+export const { setSetting, getSetting, toggleGlobalButton, isGlobalButtonEnabled, addTutorialMedia, getAllTutorialMedia, clearTutorialMedia, setTutorialTextForApi, getTutorialTextForApi, setBackupChannel, getBackupChannel, disableBackupChannel } = ConfigRepo;
 
 export const { getText, setText, getAllTexts, getTextsByCategory } = TextRepo;
 
 export const { addApiKey, getApiKeyByHash, getAllApiKeys, deleteApiKeyById, deactivateApiKey, isUserPremium, countDonatedKeys, getApiKeyOwner, getKeyUsage, incrementKeyUsage, resetAllKeyUsage, setKeyCooldown, logRequest, getStatsLast24h, logKeyError, countRecentKeyErrors } = KeyRepo;
 
-export const { addSpecialUser, getSpecialUser, getAllSpecialUsers, deleteSpecialUser, updateSpecialUser, getDailyConversation, saveDailyConversation, getAllDailyConversations, clearDailyConversations, getUserMemory, updateUserMemory, logUserMessage, getUserMessageCount, getUserStats, setUserState, getUserState, clearUserState, clearAllUserStates, setOwnerState, getOwnerState, clearOwnerState, canRequestAPI, updateAPIRequestTime, getAPIRequestCooldown, getAllUserIds } = UserRepo;
+// UPDATED EXPORT FOR USER REPO:
+export const { 
+    addSpecialUser, getSpecialUser, getAllSpecialUsers, deleteSpecialUser, updateSpecialUser, 
+    getDailyConversation, saveDailyConversation, getAllDailyConversations, clearDailyConversations, 
+    getUserMemory, updateUserMemory, logUserMessage, getUserMessageCount, getUserStats, 
+    setUserState, getUserState, clearUserState, clearAllUserStates, 
+    setOwnerState, getOwnerState, clearOwnerState, 
+    canRequestAPI, updateAPIRequestTime, getAPIRequestCooldown, getAllUserIds,
+    setUserTone, getUserTone, hasReceivedLimitMessage, markLimitMessageSent 
+} = UserRepo;
+
+

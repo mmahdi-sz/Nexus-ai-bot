@@ -1,3 +1,4 @@
+﻿
 import * as db from '../database.js';
 import { sendMessageSafe, editMessageSafe, escapeMarkdownV2, boldText, codeBlock, inlineCode } from '../utils/textFormatter.js';
 import { handleTelegramApiError } from '../core/chatLogic.js';
@@ -90,13 +91,14 @@ async function showBroadcastPreview(bot, ownerId, messageId, content, type, targ
     }
     
     const targetDisplay = target === 'users' ? 'فقط کاربران' : target === 'groups' ? 'فقط گروه‌ها' : 'همه';
-    
+    const typeDisplay = type === 'forward' ? 'فوروارد' : type === 'pin' ? 'ساده + پین' : 'ساده';
+
     const previewText = `👁 *مرحله 4 از 5: پیش‌نمایش*
 
 [▰▰▰▰▱] 80%
 
 *تنظیمات:*
-\\- 📝 نوع: ${escapeMarkdownV2(type)}
+\\- 📝 نوع: ${escapeMarkdownV2(typeDisplay)}
 \\- 👥 مخاطب: ${escapeMarkdownV2(targetDisplay)}
 \\- 📊 تعداد: ${escapeMarkdownV2(recipientCount.toString())} نفر
 \\- ⏱ زمان تخمینی: ${escapeMarkdownV2(Math.ceil(recipientCount / 5).toString())} ثانیه
@@ -425,72 +427,73 @@ ${contentInstruction}
         let failCount = 0;
         const isPin = type === 'pin';
 
-        for (let i = 0; i < total; i++) {
-            const currentChatId = targetChatIds[i];
-            const isGroup = currentChatId < 0;
-            
-            try {
-                let sentMessage;
+        try {
+            for (let i = 0; i < total; i++) {
+                const currentChatId = targetChatIds[i];
+                const isGroup = currentChatId < 0;
                 
-                if (content.type === 'forward') {
-                    sentMessage = await bot.forwardMessage(currentChatId, content.from_chat_id, content.message_id);
-                } else {
-                    const sendOptions = { parse_mode: 'Markdown' }; 
-                    if (content.media?.type === 'photo') {
-                        sentMessage = await bot.sendPhoto(currentChatId, content.media.file_id, { caption: content.text, ...sendOptions });
-                    } else if (content.media?.type === 'video') {
-                        sentMessage = await bot.sendVideo(currentChatId, content.media.file_id, { caption: content.text, ...sendOptions });
+                try {
+                    let sentMessage;
+                    
+                    if (content.type === 'forward') {
+                        sentMessage = await bot.forwardMessage(currentChatId, content.from_chat_id, content.message_id);
                     } else {
-                        sentMessage = await sendMessageSafe(bot, currentChatId, content.text, sendOptions);
-                    }
-                }
-                successCount++;
-
-                if (isPin && isGroup && currentChatId !== ownerId) {
-                    try {
-                        const botMember = await bot.getChatMember(currentChatId, BOT_ID);
-                        if (botMember && (botMember.status === 'administrator' || botMember.status === 'creator') && botMember.can_pin_messages) {
-                            await bot.pinChatMessage(currentChatId, sentMessage.message_id, { disable_notification: true });
+                        const sendOptions = { parse_mode: 'Markdown' }; 
+                        if (content.media?.type === 'photo') {
+                            sentMessage = await bot.sendPhoto(currentChatId, content.media.file_id, { caption: content.text, ...sendOptions });
+                        } else if (content.media?.type === 'video') {
+                            sentMessage = await bot.sendVideo(currentChatId, content.media.file_id, { caption: content.text, ...sendOptions });
+                        } else {
+                            sentMessage = await sendMessageSafe(bot, currentChatId, content.text, sendOptions);
                         }
-                    } catch (pinError) {
-                        console.warn(`[broadcast:execute] Failed to pin message in chat ${currentChatId}: ${pinError.message}`);
                     }
-                }
+                    successCount++;
 
-            } catch (error) {
-                failCount++;
-                const errorDesc = error.response?.body?.description || '';
-                const errorCode = error.response?.body?.error_code;
-                
-                const isChatLost = errorCode === 403 || 
-                                   errorCode === 400 ||
-                                   errorDesc.includes('blocked') || 
-                                   errorDesc.includes('kicked') ||
-                                   errorDesc.includes('deactivated') ||
-                                   errorDesc.includes('chat not found') ||
-                                   errorDesc.includes('user is deactivated');
+                    if (isPin && isGroup && currentChatId !== ownerId) {
+                        try {
+                            const botMember = await bot.getChatMember(currentChatId, BOT_ID);
+                            if (botMember && (botMember.status === 'administrator' || botMember.status === 'creator') && botMember.can_pin_messages) {
+                                await bot.pinChatMessage(currentChatId, sentMessage.message_id, { disable_notification: true });
+                            }
+                        } catch (pinError) {
+                            console.warn(`[broadcast:execute] Failed to pin message in chat ${currentChatId}: ${pinError.message}`);
+                        }
+                    }
 
-                if (isChatLost) {
-                    if (isGroup) {
-                         await db.purgeChatData(currentChatId);
-                         console.log(`[broadcast:execute] Purged data for lost group chat ${currentChatId}`);
+                } catch (error) {
+                    failCount++;
+                    const errorDesc = error.response?.body?.description || '';
+                    const errorCode = error.response?.body?.error_code;
+                    
+                    const isChatLost = errorCode === 403 || 
+                                    errorCode === 400 ||
+                                    errorDesc.includes('blocked') || 
+                                    errorDesc.includes('kicked') ||
+                                    errorDesc.includes('deactivated') ||
+                                    errorDesc.includes('chat not found') ||
+                                    errorDesc.includes('user is deactivated');
+
+                    if (isChatLost) {
+                        if (isGroup) {
+                            await db.purgeChatData(currentChatId);
+                            console.log(`[broadcast:execute] Purged data for lost group chat ${currentChatId}`);
+                        } else {
+                            await db.deactivateChat(currentChatId);
+                            console.log(`[broadcast:execute] Deactivated user chat ${currentChatId}`);
+                        }
                     } else {
-                         await db.deactivateChat(currentChatId);
-                         console.log(`[broadcast:execute] Deactivated user chat ${currentChatId}`);
+                        console.warn(`[broadcast:execute] Unhandled error for chat ${currentChatId}: ${errorDesc}`);
                     }
-                } else {
-                    console.warn(`[broadcast:execute] Unhandled error for chat ${currentChatId}: ${errorDesc}`);
                 }
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            if ((i + 1) % 5 === 0 || (i + 1) === total) {
-                const percent = Math.floor(((i + 1) / total) * 100);
-                const barCount = Math.floor(percent / 20);
-                const bars = '▰'.repeat(barCount) + '▱'.repeat(5 - barCount);
                 
-                const updateText = `🚀 *در حال ارسال...*
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                if ((i + 1) % 5 === 0 || (i + 1) === total) {
+                    const percent = Math.floor(((i + 1) / total) * 100);
+                    const barCount = Math.floor(percent / 20);
+                    const bars = '▰'.repeat(barCount) + '▱'.repeat(5 - barCount);
+                    
+                    const updateText = `🚀 *در حال ارسال...*
 
 [${bars}] ${escapeMarkdownV2(percent.toString())}%
 
@@ -499,19 +502,21 @@ ${contentInstruction}
 ❌ خطا: ${escapeMarkdownV2(failCount.toString())}
 
 ${i + 1 === total ? '🎉 تقریباً تمام شد\\!' : '⏳ لطفاً صبر کنید\\.\\.\\.'}`;
-                
-                await editMessageSafe(bot, msg.chat.id, msg.message_id, updateText, {
-                    parse_mode: 'MarkdownV2'
-                }).catch(() => {});
+                    
+                    await editMessageSafe(bot, msg.chat.id, msg.message_id, updateText, {
+                        parse_mode: 'MarkdownV2'
+                    }).catch(() => {});
+                }
             }
-        }
-        
-        const finalTime = Date.now();
-        const durationSeconds = Math.floor((finalTime - startTime) / 1000);
-        
-        await db.clearOwnerState(ownerId);
-        
-        const finalText = `✅ *ارسال تکمیل شد\\!*
+        } catch (loopError) {
+             console.error("Critical error in broadcast loop", loopError);
+        } finally {
+            const finalTime = Date.now();
+            const durationSeconds = Math.floor((finalTime - startTime) / 1000);
+            
+            await db.clearOwnerState(ownerId);
+            
+            const finalText = `✅ *ارسال تکمیل شد\\!*
 
 [▰▰▰▰▰] 100%
 
@@ -523,17 +528,18 @@ ${i + 1 === total ? '🎉 تقریباً تمام شد\\!' : '⏳ لطفاً ص�
 \\- ⏱ زمان کل: ${escapeMarkdownV2(durationSeconds.toString())} ثانیه
 
 ${failCount > 0 ? boldText('⚠️ خطاها:\nکاربران ربات را بلاک کرده‌اند یا از گروه خارج شده‌اند\\.\nاطلاعات آن‌ها از دیتابیس پاک شد\\.') : ''}`;
-        
-        const keyboard = {
-            inline_keyboard: [
-                [{ text: '🏠 بازگشت به پنل', callback_data: 'admin_panel' }]
-            ]
-        };
-        
-        await editMessageSafe(bot, msg.chat.id, msg.message_id, finalText, {
-            parse_mode: 'MarkdownV2',
-            reply_markup: keyboard
-        });
+            
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: '🏠 بازگشت به پنل', callback_data: 'admin_panel' }]
+                ]
+            };
+            
+            await editMessageSafe(bot, msg.chat.id, msg.message_id, finalText, {
+                parse_mode: 'MarkdownV2',
+                reply_markup: keyboard
+            });
+        }
     }
     
     if (data === 'broadcast_wiz_cancel') {
@@ -546,3 +552,5 @@ ${failCount > 0 ? boldText('⚠️ خطاها:\nکاربران ربات را ب�
 
     return true;
 }
+
+

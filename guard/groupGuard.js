@@ -1,18 +1,22 @@
+﻿
 import * as db from '../database.js';
 import { sendMessageSafe } from '../utils/textFormatter.js';
 import { handleTelegramApiError } from '../core/chatLogic.js';
+import { isOwner } from '../utils/ownerCheck.js'; // Added import
 
 const ARABIC_PERSIAN_NUMBERS = '۰-۹\u06F0-\u06F9'; 
 const NUMBER_REGEX = `([${ARABIC_PERSIAN_NUMBERS}\\d]+)`; 
 const DURATION_REGEX = new RegExp(`${NUMBER_REGEX}\\s*(ثانیه|s|دقیقه|m|min|ساعت|h|روز|d|day)`, 'i');
+
 const COMMAND_TO_TYPE = {
-    'بن': 'ban', 'مسدود': 'ban', 'ban': 'ban',
-    'کیک': 'kick', 'اخراج': 'kick', 'kick': 'kick',
+    'بن': 'ban', 'مسدود': 'ban', 'ban': 'ban', 'بنگ': 'ban',
+    'کیک': 'kick', 'اخراج': 'kick', 'kick': 'kick', 'سیک': 'kick', 'صیک': 'kick',
     'سکوت': 'mute', 'میوت': 'mute', 'mute': 'mute',
     'حذف سکوت': 'unmute', 'حذف میوت': 'unmute', 'unmute': 'unmute',
     'حذف بن': 'unban', 'آنبن': 'unban', 'انبن': 'unban', 'unban': 'unban', 'pardon': 'unban',
 };
 
+// Modified Regex to match command only at start of string
 const COMMAND_KEYS_REGEX = new RegExp(`^(${Object.keys(COMMAND_TO_TYPE).join('|').replace(/ /g, '\\s+')})(?:\\s+|$)`, 'i');
 
 function toJalali(date) {
@@ -44,7 +48,6 @@ function toJalali(date) {
         if (!jm) { jm = 12; jd = days - sal_a[11] + 1; }
         return [jy, jm, jd];
     };
-    
     const [jy, jm, jd] = g2j(date.getFullYear(), date.getMonth() + 1, date.getDate());
     return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
 }
@@ -60,7 +63,6 @@ function getDurationText(seconds) {
     if (minutes > 0) parts.push(`${minutes} دقیقه`);
     return parts.join(' و ') || 'کمتر از یک دقیقه';
 }
-
 
 function parseDuration(durationString) {
     if (!durationString) return 0;
@@ -168,7 +170,6 @@ export async function handleGroupGuard(bot, msg, botInfo) {
     if (msg.chat.type === 'private' || !msg.text) return false;
 
     const match = msg.text.trim().match(COMMAND_KEYS_REGEX);
-    
     if (!match) return false; 
     
     const rawCommand = match[1].toLowerCase().trim();
@@ -176,7 +177,6 @@ export async function handleGroupGuard(bot, msg, botInfo) {
     const commandWord = rawCommand; 
 
     if (!commandType) return false; 
-    
     if (msg.text.startsWith('/')) return false; 
 
     console.log(`[groupGuard:handleGroupGuard] START (Chat: ${chatId}, Type: ${commandType}, Raw Command: "${rawCommand}")`);
@@ -223,7 +223,7 @@ export async function handleGroupGuard(bot, msg, botInfo) {
         return true;
     }
     
-    if (targetId === botInfo.id || targetId === parseInt(process.env.BOT_OWNER_ID, 10) || msg.from.id === targetId) {
+    if (targetId === botInfo.id || isOwner(targetId) || msg.from.id === targetId) {
         const errorText = await db.getText('guard_error_target_is_safe', "❌ به نظر می‌رسه هدف ما از افراد خودی هست یا خودتی، رفیق.");
         await sendMessageSafe(bot, chatId, errorText, { reply_to_message_id: msg.message_id });
         return true;
@@ -231,7 +231,6 @@ export async function handleGroupGuard(bot, msg, botInfo) {
     
     const userDisplayName = targetUsername || targetFirstName || 'ناشناس';
     const userLink = `<a href="tg://user?id=${targetId}">${userDisplayName}</a>`;
-    
     const userInfo = `[${targetId}] ${userLink}`;
     
     let finalUntilDate = 0; 
@@ -304,14 +303,16 @@ export async function handleGroupGuard(bot, msg, botInfo) {
                 break;
         }
 
-        await sendMessageSafe(bot, chatId, successText, { parse_mode: 'HTML' });
+        // Corrected reply logic: Reply to the TARGET message if it exists, otherwise reply to the admin's command.
+        const replyToId = targetMessageId || msg.message_id;
+        await sendMessageSafe(bot, chatId, successText, { parse_mode: 'HTML', reply_to_message_id: replyToId });
         
         return true;
 
     } catch (error) {
         console.error(`[groupGuard:handleGroupGuard] Telegram API Error for ${commandType} on target ${targetId}:`, error.message);
         
-        const replyOptions = targetMessageId ? { reply_to_message_id: targetMessageId } : {};
+        const replyOptions = targetMessageId ? { reply_to_message_id: targetMessageId } : { reply_to_message_id: msg.message_id };
 
         if (error.response?.body?.description?.includes('user is an administrator')) {
             const errorText = await db.getText('guard_error_target_is_admin', "❌ این رفیق یه تفنگدار قدیمیه، نمی‌تونم لمسش کنم!");
@@ -323,3 +324,5 @@ export async function handleGroupGuard(bot, msg, botInfo) {
         return true;
     }
 }
+
+

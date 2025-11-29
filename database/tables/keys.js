@@ -1,3 +1,4 @@
+﻿
 import { dbQuery } from '../repository.js';
 
 export const addApiKey = async (encryptedKey, keyHash, displayName, donatedByUserId = null) => {
@@ -106,3 +107,5 @@ export const countRecentKeyErrors = async (keyId, errorType, timeWindow = '1 hou
     );
     return rows[0];
 };
+
+

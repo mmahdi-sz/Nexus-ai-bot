@@ -1,8 +1,12 @@
+﻿
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import cron from 'node-cron';
+import * as db from '../../database.js';
 import { sendMessageSafe, editMessageSafe } from '../../utils/textFormatter.js';
+import { isOwner } from '../../utils/ownerCheck.js';
 
 const execAsync = promisify(exec);
 
@@ -16,12 +20,10 @@ function formatFileSize(bytes) {
 }
 
 async function ensureBackupDir() {
-    console.log('[backup:ensureBackupDir] Checking backup directory.');
     try {
         await fs.access(BACKUP_DIR);
     } catch {
         await fs.mkdir(BACKUP_DIR, { recursive: true });
-        console.log('[backup:ensureBackupDir] Created backup directory');
     }
 }
 
@@ -31,7 +33,6 @@ async function getFileSize(filePath) {
 }
 
 async function createDatabaseBackup() {
-    console.log('[backup:createDatabaseBackup] START - Creating SQL dump.');
     await ensureBackupDir();
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
@@ -45,7 +46,7 @@ async function createDatabaseBackup() {
     const dbName = process.env.DB_NAME;
     
     if (!dbUser || !dbPassword || !dbName) {
-        throw new Error('Database credentials not found in environment variables (DB_USER, DB_PASSWORD, DB_NAME)');
+        throw new Error('Database credentials not found in environment variables');
     }
     
     const dumpCommand = `mysqldump --skip-ssl -h ${dbHost} -P ${dbPort} -u ${dbUser} ${dbName} --single-transaction --quick --lock-tables=false > "${filepath}"`;
@@ -56,7 +57,6 @@ async function createDatabaseBackup() {
         });
         
         const fileSize = await getFileSize(filepath);
-        console.log(`[backup:createDatabaseBackup] SQL dump created (Size: ${formatFileSize(fileSize)}).`);
         return { filepath, fileSize, filename };
     } catch (error) {
         try {
@@ -71,7 +71,6 @@ async function createDatabaseBackup() {
 }
 
 async function compressBackup(sqlFilePath) {
-    console.log('[backup:compressBackup] START - Compressing with gzip.');
     const gzipPath = `${sqlFilePath}.gz`;
     
     await execAsync(`gzip -c "${sqlFilePath}" > "${gzipPath}"`);
@@ -80,17 +79,14 @@ async function compressBackup(sqlFilePath) {
     
     await fs.unlink(sqlFilePath);
     
-    console.log(`[backup:compressBackup] END - Compression successful (Size: ${formatFileSize(compressedSize)}).`);
     return { filepath: gzipPath, fileSize: compressedSize };
 }
 
 async function cleanOldBackups() {
-    console.log('[backup:cleanOldBackups] START - Cleaning old backups.');
     try {
         const files = await fs.readdir(BACKUP_DIR);
         const now = Date.now();
         const maxAge = 7 * 24 * 60 * 60 * 1000;
-        let deleteCount = 0;
         
         for (const file of files) {
             const filePath = path.join(BACKUP_DIR, file);
@@ -98,11 +94,8 @@ async function cleanOldBackups() {
             
             if (now - stats.mtimeMs > maxAge) {
                 await fs.unlink(filePath);
-                console.log(`[backup:cleanOldBackups] Deleted old backup: ${file}`);
-                deleteCount++;
             }
         }
-        console.log(`[backup:cleanOldBackups] END - Cleaned ${deleteCount} old files.`);
     } catch (error) {
         console.error('[backup:cleanOldBackups] Error cleaning old backups:', error.message);
     }
@@ -117,12 +110,122 @@ async function checkMysqldumpAvailability() {
     }
 }
 
+export function scheduleAutoBackup() {
+    cron.schedule('0 */4 * * *', async () => {
+        console.log('[backup:scheduleAutoBackup] Starting scheduled backup...');
+        
+        const backupChannel = await db.getBackupChannel();
+        
+        if (!backupChannel) {
+            console.log('[backup:scheduleAutoBackup] No backup channel configured.');
+            return;
+        }
+
+        try {
+            const bot = global.bot;
+            if (!bot) {
+                console.error('[backup:scheduleAutoBackup] Bot instance not available.');
+                return;
+            }
+
+            const statusMsg = await bot.sendMessage(
+                backupChannel.channel_id,
+                '⏳ **در حال تهیه بکاپ خودکار...**\n\nلطفاً صبر کنید، این کار ممکن است چند دقیقه طول بکشد.',
+                { parse_mode: 'Markdown' }
+            );
+
+            let backupFilepath = null;
+
+            try {
+                let backup = await createDatabaseBackup();
+                backupFilepath = backup.filepath;
+
+                backup = await compressBackup(backup.filepath);
+                backupFilepath = backup.filepath;
+
+                if (backup.fileSize > MAX_TELEGRAM_FILE_SIZE) {
+                    await bot.editMessageText(
+                        `❌ بکاپ خودکار ناموفق: حجم فایل بیش از حد مجاز (${formatFileSize(backup.fileSize)})`,
+                        {
+                            chat_id: backupChannel.channel_id,
+                            message_id: statusMsg.message_id
+                        }
+                    );
+                    return;
+                }
+
+                const jalaliDate = new Date().toLocaleDateString('fa-IR');
+                const caption = 
+                    `✅ **بکاپ خودکار**\n\n` +
+                    `📅 تاریخ: ${jalaliDate}\n` +
+                    `🕐 ساعت: ${new Date().toLocaleTimeString('fa-IR')}\n` +
+                    `📦 حجم: ${formatFileSize(backup.fileSize)}\n` +
+                    `💾 دیتابیس: ${process.env.DB_NAME || 'Unknown'}`;
+
+                await bot.sendDocument(
+                    backupChannel.channel_id,
+                    backup.filepath,
+                    {
+                        caption: caption,
+                        parse_mode: 'Markdown'
+                    }
+                );
+
+                await bot.deleteMessage(backupChannel.channel_id, statusMsg.message_id).catch(() => {});
+                
+                console.log('[backup:scheduleAutoBackup] Backup sent successfully.');
+
+            } catch (error) {
+                console.error('[backup:scheduleAutoBackup] Error:', error.message);
+                await bot.editMessageText(
+                    `❌ **خطا در تهیه بکاپ خودکار**\n\n*مشکل:* ${error.message || 'خطایی ناشناخته'}`,
+                    {
+                        chat_id: backupChannel.channel_id,
+                        message_id: statusMsg.message_id,
+                        parse_mode: 'Markdown'
+                    }
+                ).catch(() => {});
+            } finally {
+                if (backupFilepath) {
+                    try {
+                        await fs.unlink(backupFilepath);
+                    } catch (e) {
+                        console.error(`[backup:scheduleAutoBackup] Failed to delete: ${e.message}`);
+                    }
+                }
+            }
+
+        } catch (error) {
+            console.error('[backup:scheduleAutoBackup] Fatal error:', error.message);
+        }
+    }, {
+        scheduled: true,
+        timezone: "UTC"
+    });
+
+    console.log('[backup:scheduleAutoBackup] Scheduled every 4 hours.');
+}
+
+export async function sendCriticalAlert(message) {
+    try {
+        const bot = global.bot;
+        if (!bot) return;
+        
+        const backupChannel = await db.getBackupChannel();
+        if (!backupChannel) return;
+        
+        const alertText = `🚨 **هشدار بحرانی**\n\n${message}\n\n⏰ زمان: ${new Date().toLocaleString('fa-IR')}`;
+        
+        await bot.sendMessage(backupChannel.channel_id, alertText, { 
+            parse_mode: 'Markdown' 
+        });
+    } catch (error) {
+        console.error('[backup:sendCriticalAlert] Failed to send alert:', error.message);
+    }
+}
+
 export async function handleBackupCommand(bot, msg) {
-    console.log(`[backup:handleBackupCommand] START (User: ${msg.from.id})`);
-    const BOT_OWNER_ID = parseInt(process.env.BOT_OWNER_ID || '0', 10);
-    
-    if (msg.from.id !== BOT_OWNER_ID) {
-        console.log('[backup:handleBackupCommand] END - Not owner, ignoring.');
+    if (!isOwner(msg.from.id)) {
         return;
     }
 
@@ -132,14 +235,13 @@ export async function handleBackupCommand(bot, msg) {
             `❌ **mysqldump یافت نشد**\n\n` +
             `برای استفاده از این قابلیت، mysqldump باید روی سرور نصب باشد.\n\n` +
             `**نصب:**\n` +
-            '`apt-get install mysql-client` (Ubuntu/Debian)\n' +
-            '`yum install mysql` (CentOS/RHEL)';
+            `\`apt-get install mysql-client\` (Ubuntu/Debian)\n` +
+            `\`yum install mysql\` (CentOS/RHEL)`;
         
         await sendMessageSafe(bot, msg.chat.id, errorText, { 
             reply_to_message_id: msg.message_id,
             parse_mode: 'Markdown'
         });
-        console.log('[backup:handleBackupCommand] END - mysqldump not available.');
         return;
     }
     
@@ -185,7 +287,6 @@ export async function handleBackupCommand(bot, msg) {
             
             await fs.unlink(backupFilepath);
             backupFilepath = null;
-            console.log('[backup:handleBackupCommand] END - Backup file too large.');
             return;
         }
         
@@ -201,7 +302,7 @@ export async function handleBackupCommand(bot, msg) {
             `📦 حجم: ${formatFileSize(backup.fileSize)}\n` +
             `💾 دیتابیس: ${process.env.DB_NAME || 'Unknown'}\n\n` +
             `برای بازیابی:\n` +
-            '`gunzip < backup.sql.gz | mysql -u user -p dbname`';
+            `\`gunzip < backup.sql.gz | mysql -u user -p dbname\``;
         
         await bot.sendDocument(
             msg.chat.id,
@@ -213,8 +314,6 @@ export async function handleBackupCommand(bot, msg) {
         );
         
         await bot.deleteMessage(msg.chat.id, statusMsg.message_id).catch(() => {});
-        
-        console.log('[backup:handleBackupCommand] Backup sent successfully.');
         
     } catch (error) {
         console.error('❌ [backup:handleBackupCommand] CRITICAL ERROR:', error.originalError || error);
@@ -235,12 +334,12 @@ export async function handleBackupCommand(bot, msg) {
         if (backupFilepath) {
             try {
                 await fs.unlink(backupFilepath);
-                console.log(`[backup:handleBackupCommand] Temporary file deleted: ${backupFilepath}`);
             } catch (e) {
                 console.error(`[backup:handleBackupCommand] Failed to delete temporary file ${backupFilepath}:`, e.message);
             }
         }
         await cleanOldBackups();
-        console.log('[backup:handleBackupCommand] END - Final cleanup.');
     }
 }
+
+

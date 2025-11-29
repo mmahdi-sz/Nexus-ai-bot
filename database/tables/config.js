@@ -1,3 +1,4 @@
+﻿
 import { dbQuery } from '../repository.js';
 import { getAppCache } from '../../database.js';
 
@@ -10,7 +11,6 @@ export const setSetting = async (key, value) => {
         [key, valueJson, valueJson]
     );
 
-    // Cache Update
     if (getAppCache().globalSettings.hasOwnProperty(key)) {
         getAppCache().globalSettings[key] = value;
     }
@@ -19,7 +19,6 @@ export const setSetting = async (key, value) => {
 };
 
 export const getSetting = async (key, defaultValue = null) => {
-    // Optimized: Check cache first for known settings
     const cache = getAppCache();
     if (cache.globalSettings.hasOwnProperty(key)) {
         return cache.globalSettings[key] !== undefined ? cache.globalSettings[key] : defaultValue;
@@ -55,7 +54,6 @@ export const toggleGlobalButton = async () => {
 };
 
 export const isGlobalButtonEnabled = async () => {
-    // Optimized: Check cache first
     const key = 'global_button_enabled';
     const cache = getAppCache();
     if (cache.globalSettings.hasOwnProperty(key)) {
@@ -103,3 +101,22 @@ export const getTutorialTextForApi = async () => {
     const rows = await dbQuery(`SELECT * FROM api_tutorial_text WHERE id = 1`);
     return rows.length > 0 ? rows[0] : null;
 };
+
+export const setBackupChannel = (channelId, channelTitle) => {
+    return dbQuery(
+        `INSERT INTO backup_channels (channel_id, channel_title, enabled) VALUES (?, ?, 1)
+         ON DUPLICATE KEY UPDATE channel_title = ?, enabled = 1`,
+        [channelId, channelTitle, channelTitle]
+    );
+};
+
+export const getBackupChannel = async () => {
+    const rows = await dbQuery("SELECT * FROM backup_channels WHERE enabled = 1 LIMIT 1");
+    return rows.length > 0 ? rows[0] : null;
+};
+
+export const disableBackupChannel = () => {
+    return dbQuery("UPDATE backup_channels SET enabled = 0");
+};
+
+
