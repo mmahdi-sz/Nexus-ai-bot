@@ -25,7 +25,6 @@ export class APIService {
                 "gemini-flash-latest",
                 "gemini-2.5-flash",
                 "gemini-2.5-pro",
-                "gemini-pro"
             ],
             maxRetries: config.maxRetries || 2,
             timeout: config.timeout || 30000
